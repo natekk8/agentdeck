@@ -315,6 +315,7 @@ class Deck:
             "language": DEFAULT_LANG,
             "projects_root": str(default_projects_root()),
             "onboarded": False,
+            "sentry_dsn": "",
             "glitchtip_dsn": "",
         }
         if self.settings_path.is_file():
@@ -326,7 +327,9 @@ class Deck:
                     if root:
                         defaults["projects_root"] = root
                     defaults["onboarded"] = bool(loaded.get("onboarded", False))
-                    defaults["glitchtip_dsn"] = str(loaded.get("glitchtip_dsn") or "").strip()
+                    dsn = str(loaded.get("sentry_dsn") or loaded.get("glitchtip_dsn") or "").strip()
+                    defaults["sentry_dsn"] = dsn
+                    defaults["glitchtip_dsn"] = dsn
                     return defaults
             except (OSError, ValueError):
                 pass
@@ -675,8 +678,13 @@ class Deck:
             )
         with self.lock:
             if operation == "settings_get":
-                return dict(self.settings) | {"autostart": autostart_status(), "version": APP_VERSION,
-                                              "glitchtip_configured": bool(resolve_dsn(self.settings))}
+                configured = bool(resolve_dsn(self.settings))
+                return dict(self.settings) | {
+                    "autostart": autostart_status(),
+                    "version": APP_VERSION,
+                    "sentry_configured": configured,
+                    "glitchtip_configured": configured,
+                }
             if operation == "settings_save":
                 changed = False
                 if "language" in request:
@@ -692,15 +700,22 @@ class Deck:
                 if "onboarded" in request:
                     self.settings["onboarded"] = bool(request.get("onboarded"))
                     changed = True
-                if "glitchtip_dsn" in request:
-                    self.settings["glitchtip_dsn"] = str(request.get("glitchtip_dsn") or "").strip()
+                if "sentry_dsn" in request or "glitchtip_dsn" in request:
+                    dsn = str(request.get("sentry_dsn") if "sentry_dsn" in request else request.get("glitchtip_dsn") or "").strip()
+                    self.settings["sentry_dsn"] = dsn
+                    self.settings["glitchtip_dsn"] = dsn
                     changed = True
                 if "autostart" in request:
                     set_autostart(self.directory, bool(request.get("autostart")))
                 if changed:
                     atomic_json(self.settings_path, self.settings)
-                return dict(self.settings) | {"autostart": autostart_status(), "version": APP_VERSION,
-                                              "glitchtip_configured": bool(resolve_dsn(self.settings))}
+                configured = bool(resolve_dsn(self.settings))
+                return dict(self.settings) | {
+                    "autostart": autostart_status(),
+                    "version": APP_VERSION,
+                    "sentry_configured": configured,
+                    "glitchtip_configured": configured,
+                }
             if operation == "autostart_get":
                 return {"autostart": autostart_status()}
             if operation == "autostart_set":
@@ -1041,6 +1056,12 @@ class Deck:
         if operation == "status":
             values, _ = self.overview()
             return values
+        if operation == "sync_settings":
+            new_lang = normalize_lang(data.get("lang"))
+            if new_lang != self.settings.get("language"):
+                self.settings["language"] = new_lang
+                atomic_json(self.settings_path, self.settings)
+            return {"lang": self.settings["language"]}
         if operation in {"projects", "models", "efforts", "prompts", "sessions", "limits", "accounts"}:
             return self.listing(operation, data, lang=lang)
         if operation == "create_project":

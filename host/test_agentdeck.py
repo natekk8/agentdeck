@@ -638,6 +638,13 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual("feature", captured["body"]["tags"]["report_kind"])
         self.assertNotIn("Bob", captured["body"]["extra"]["description"])
 
+    def test_sync_settings_from_stick_updates_windows_language(self):
+        self.assertEqual("en", self.deck.desktop("settings_get", {})["language"])
+        res = self.send("sync_settings", lang="pl")
+        self.assertTrue(res["ok"], res)
+        self.assertEqual("pl", res["lang"])
+        self.assertEqual("pl", self.deck.desktop("settings_get", {})["language"])
+
 
 if __name__ == "__main__":
     unittest.main()

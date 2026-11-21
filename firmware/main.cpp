@@ -1425,6 +1425,7 @@ void select() {
     } else if (view.page == Page::Language) {
         saveLanguage(view.cursor == 1);
         back();
+        request("sync_settings");
         errorText = tr("Language updated", "Zapisano język");
         statusMint = true;
     } else if (view.page == Page::WakeHosts && view.cursor < int(view.rows.size())) {

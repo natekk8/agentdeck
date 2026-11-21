@@ -53,7 +53,10 @@ function Open-Desktop {
         $references += @('PresentationCore.dll', 'PresentationFramework.dll', 'WindowsBase.dll') |
             ForEach-Object { '/reference:' + (Join-Path $framework ('WPF\' + $_)) }
         $buildPath = Join-Path $logRoot ('AgentDeck-build-' + $PID + '.exe')
-        & (Join-Path $framework 'csc.exe') /nologo /target:winexe /optimize+ /codepage:65001 "/out:$buildPath" @references $windowSource
+        $icoPath = Join-Path $projectPath 'assets\logo.ico'
+        $cscArgs = @('/nologo', '/target:winexe', '/optimize+', '/codepage:65001', "/out:$buildPath") + $references + @($windowSource)
+        if (Test-Path -LiteralPath $icoPath) { $cscArgs += "/win32icon:$icoPath" }
+        & (Join-Path $framework 'csc.exe') @cscArgs
         if ($LASTEXITCODE -or -not (Test-Path -LiteralPath $buildPath)) {
             throw 'Failed to compile AgentDeck.exe.'
         }

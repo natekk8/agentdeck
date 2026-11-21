@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from i18n import DEFAULT_LANG, tr
-from version import APP_VERSION, DEFAULT_GLITCHTIP_DSN
+from version import APP_VERSION, DEFAULT_SENTRY_DSN
 
 VALID_KINDS = ("bug", "feature", "other")
 _USER_PATH_WIN = re.compile(r"([A-Za-z]:\\Users\\)([^\\/\r\n]+)", re.I)
@@ -21,14 +21,16 @@ _BEARER_RE = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-]{12,}", re.I)
 
 
 def resolve_dsn(settings=None):
-    env_dsn = str(os.environ.get("AGENTDECK_GLITCHTIP_DSN") or "").strip()
-    if env_dsn:
-        return env_dsn
+    for env_key in ("AGENTDECK_SENTRY_DSN", "AGENTDECK_GLITCHTIP_DSN"):
+        env_dsn = str(os.environ.get(env_key) or "").strip()
+        if env_dsn:
+            return env_dsn
     if isinstance(settings, dict):
-        cfg_dsn = str(settings.get("glitchtip_dsn") or "").strip()
-        if cfg_dsn:
-            return cfg_dsn
-    return DEFAULT_GLITCHTIP_DSN.strip()
+        for cfg_key in ("sentry_dsn", "glitchtip_dsn"):
+            cfg_dsn = str(settings.get(cfg_key) or "").strip()
+            if cfg_dsn:
+                return cfg_dsn
+    return DEFAULT_SENTRY_DSN.strip()
 
 
 def parse_dsn(dsn, lang=DEFAULT_LANG):

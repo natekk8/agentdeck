@@ -18,7 +18,10 @@ $refs += @('PresentationCore.dll','PresentationFramework.dll','WindowsBase.dll')
 
 $exeOut = Join-Path $root 'AgentDeck.exe'
 $desktopCs = Join-Path $root 'host\Desktop.cs'
-& (Join-Path $fw 'csc.exe') /nologo /target:winexe /optimize+ /codepage:65001 "/out:$exeOut" @refs $desktopCs
+$icoPath = Join-Path $root 'assets\logo.ico'
+$cscArgs = @('/nologo', '/target:winexe', '/optimize+', '/codepage:65001', "/out:$exeOut") + $refs + @($desktopCs)
+if (Test-Path -LiteralPath $icoPath) { $cscArgs += "/win32icon:$icoPath" }
+& (Join-Path $fw 'csc.exe') @cscArgs
 if ($LASTEXITCODE) { throw 'csc.exe compilation failed.' }
 
 $valProc = Start-Process -FilePath $exeOut -ArgumentList @(

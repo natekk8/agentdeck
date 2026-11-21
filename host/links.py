@@ -196,6 +196,7 @@ class Links:
         self.snapshots = {}
         self.selected = {}
         self.controls = {}
+        self.lang_synced = {}
         self.local_relay_server = None
         self.local_relay_thread = None
         self.local_relay_bind = "127.0.0.1"
@@ -352,6 +353,7 @@ class Links:
         if not isinstance(snapshot, dict) or not IDENTIFIER.fullmatch(str(snapshot.get("device", ""))):
             return
         device = snapshot["device"]
+        sync_target = None
         with self.lock:
             if usb:
                 self.usb_device = device
@@ -360,6 +362,13 @@ class Links:
             address = snapshot.get("address")
             if address:
                 self.seen[device] = {"id": device, "address": str(ipaddress.IPv4Address(address))}
+            stick_lang = snapshot.get("lang")
+            pc_lang = self.lang()
+            if stick_lang in ("en", "pl") and stick_lang != pc_lang and self.lang_synced.get(device) != pc_lang:
+                self.lang_synced[device] = pc_lang
+                sync_target = pc_lang
+        if sync_target:
+            threading.Thread(target=self.push_language, args=(sync_target,), daemon=True).start()
 
     def devices(self):
         with self.lock:
@@ -371,7 +380,7 @@ class Links:
                 device = item["id"]
                 values.append({**item, "usb": self.usb_ready and self.usb_device == device,
                                "snapshot": self.snapshots.get(device, {})})
-            return {"paired": choices, "usb": self.usb_ready, "devices": values}
+            return {"paired": choices, "usb": self.usb_ready, "devices": values, "lang": self.lang()}
 
     def command(self, device, action, **values):
         lang = self.lang()

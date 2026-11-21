@@ -30,6 +30,7 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
+SetupIconFile=..\assets\logo.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

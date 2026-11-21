@@ -177,6 +177,7 @@ sealed class Desktop
         marker = Path.Combine(data, "desktop.json");
         using (var file = File.OpenRead(layout)) window = (Window)XamlReader.Load(file);
         client.Timeout = TimeSpan.FromSeconds(25);
+        LoadWindowIcon();
         LoadBrandLogo();
 
         C<ComboBox>("Provider").SelectedIndex = 0;
@@ -356,9 +357,10 @@ sealed class Desktop
                 lang = Str(settings, "language") == "pl" ? "pl" : "en";
                 C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
                 C<TextBox>("ProjectsRootInput").Text = Str(settings, "projects_root");
-                C<TextBox>("GlitchtipDsnInput").Text = Str(settings, "glitchtip_dsn");
-                UpdateGlitchtipBadge(Flag(settings, "glitchtip_configured"));
-                UpdateAutostartUi(Flag(settings, "autostart"));
+                C<TextBox>("GlitchtipDsnInput").Text = Display(settings, "sentry_dsn", Str(settings, "glitchtip_dsn"));
+                UpdateGlitchtipBadge(Flag(settings, "sentry_configured") || Flag(settings, "glitchtip_configured"));
+                var onboarded = Flag(settings, "onboarded");
+                UpdateAutostartUi(Flag(settings, "autostart"), onboarded);
                 var ver = Str(settings, "version");
                 if (ver.Length > 0) C<TextBlock>("VersionBadge").Text = "v" + ver;
                 ApplyLanguage();
@@ -366,7 +368,7 @@ sealed class Desktop
                 var relay = await Api("relay_get");
                 C<TextBox>("RelayAddress").Text = Str(relay, "endpoint");
                 UpdateLocalRelayBadge(Obj(relay, "local_relay"));
-                if (!Flag(settings, "onboarded")) ShowOnboarding(1);
+                if (!onboarded) ShowOnboarding(1);
                 Note(L("ready"));
             });
             timer.Tick += async (s2, e2) => await RefreshState();
@@ -386,6 +388,25 @@ sealed class Desktop
         element.RenderTransform = transform;
         element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease });
         transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, duration) { EasingFunction = ease });
+    }
+
+    void LoadWindowIcon()
+    {
+        string[] candidates = {
+            Path.Combine(appDir, "assets", "logo.ico"),
+            Path.Combine(appDir, "logo.ico"),
+            Path.Combine(appDir, "assets", "logo.png")
+        };
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                window.Icon = BitmapFrame.Create(new Uri(path, UriKind.Absolute));
+                return;
+            }
+            catch { }
+        }
     }
 
     void LoadBrandLogo()
@@ -1116,11 +1137,11 @@ sealed class Desktop
         Note(L("local_relay_stopped"));
     }
 
-    void UpdateAutostartUi(bool enabled)
+    void UpdateAutostartUi(bool enabled, bool syncOnboarding = true)
     {
         suppressAutostartEvent = true;
         C<CheckBox>("AutostartToggle").IsChecked = enabled;
-        C<CheckBox>("OnbAutoToggle").IsChecked = enabled;
+        if (syncOnboarding) C<CheckBox>("OnbAutoToggle").IsChecked = enabled;
         suppressAutostartEvent = false;
         C<TextBlock>("AutostartStateText").Text = enabled ? L("enabled") : L("disabled");
         C<TextBlock>("AutostartStateText").Foreground = enabled ? mint : muted;
@@ -1176,9 +1197,9 @@ sealed class Desktop
     async Task SaveGlitchtipDsn()
     {
         var dsn = C<TextBox>("GlitchtipDsnInput").Text.Trim();
-        var res = await Api("settings_save", "glitchtip_dsn", dsn);
-        C<TextBox>("GlitchtipDsnInput").Text = Str(res, "glitchtip_dsn");
-        UpdateGlitchtipBadge(Flag(res, "glitchtip_configured"));
+        var res = await Api("settings_save", "sentry_dsn", dsn);
+        C<TextBox>("GlitchtipDsnInput").Text = Display(res, "sentry_dsn", Str(res, "glitchtip_dsn"));
+        UpdateGlitchtipBadge(Flag(res, "sentry_configured") || Flag(res, "glitchtip_configured"));
         Note(L("dsn_saved"));
     }
 
@@ -1568,6 +1589,13 @@ sealed class Desktop
         {
             var result = await Api("devices");
             lastDevicesResult = result;
+            var serverLang = Str(result, "lang");
+            if ((serverLang == "en" || serverLang == "pl") && serverLang != lang)
+            {
+                lang = serverLang;
+                C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
+                ApplyLanguage();
+            }
             var rows = Rows(result, "devices");
             var signature = string.Join("|", rows.Select(row => Str(row, "id") + DeviceTitle(row) + BatteryBadgeText(Obj(row, "snapshot"))));
             var device = DeviceId();
@@ -1986,8 +2014,8 @@ sealed class Desktop
                     { "sub_devices", "Pair and monitor your M5Stick S3 battery & link over USB or Wi-Fi" },
                     { "sub_wifi", "Configure wireless networks directly on your StickS3" },
                     { "sub_remote", "Official Codex & Antigravity Remote Control + StickS3 away-from-home relay" },
-                    { "sub_feedback", "Send Bug Reports & Feature Requests to @agentdeckbot via GlitchTip" },
-                    { "sub_settings", "Autostart for Wake on LAN, language preferences, GlitchTip DSN, and updates" },
+                    { "sub_feedback", "Send Bug Reports & Feature Requests to GitHub via Sentry.io" },
+                    { "sub_settings", "Autostart for Wake on LAN, language preferences, Sentry DSN, and updates" },
                     { "projects_title", "IDE Projects" },
                     { "filter_all", "All" },
                     { "btn_new_project", "+ New Project" },
@@ -2083,10 +2111,10 @@ sealed class Desktop
                     { "onb_lang_prompt", "Interface Language" },
                     { "onb_lang_en_sub", "Default interface language" },
                     { "onb_lang_pl_sub", "Polski interfejs na PC i Sticku" },
-                    { "onb_step2_title", "Always Ready for Wake on LAN" },
-                    { "onb_step2_sub", "Confirm background autostart so your PC responds automatically when woken from StickS3." },
-                    { "onb_auto_title", "Start AgentDeck silently with Windows" },
-                    { "onb_auto_desc", "Launches only the lightweight background bridge with zero CMD window so Wake on LAN and remote prompts work anytime." },
+                    { "onb_step2_title", "Start Automatically with Windows?" },
+                    { "onb_step2_sub", "AgentDeck always runs silently without any CMD window. Choose if Windows should start it automatically (recommended for Wake on LAN)." },
+                    { "onb_auto_title", "Add AgentDeck to Windows Autostart" },
+                    { "onb_auto_desc", "Enabled by default — launches the silent background bridge on sign-in so StickS3 and Wake on LAN are always ready." },
                     { "onb_auto_hint", "Recommended: keeps your StickS3 ready whenever Windows boots or wakes." },
                     { "onb_step3_title", "Connect Your StickS3" },
                     { "onb_step3_sub", "Pair via USB in one click so Wi-Fi, battery monitoring, and Wake on LAN keys are configured." },
@@ -2222,12 +2250,12 @@ sealed class Desktop
                     { "channels_saved", "Channel keys exported for relay server." },
                     { "relay_reachable", "Stick is reachable through the relay!" },
                     { "relay_unreachable", "No response via relay. Check URL and Stick Wi-Fi." },
-                    { "settings_gt_title", "GlitchTip Reporter DSN" },
-                    { "settings_gt_desc", "Project Client Key (DSN) used by Feedback / Bug Report submissions." },
+                    { "settings_gt_title", "Sentry.io Reporter DSN" },
+                    { "settings_gt_desc", "Sentry.io Project Client Key (DSN) used by Bug Report & Feature Request submissions." },
                     { "btn_save_dsn", "Save DSN" },
                     { "configured", "Configured" },
                     { "not_configured", "Not configured" },
-                    { "dsn_saved", "GlitchTip DSN saved." },
+                    { "dsn_saved", "Sentry DSN saved." },
                     { "btn_check_updates", "Check for Updates" },
                     { "checking_updates", "Checking GitHub Releases for updates..." },
                     { "no_updates_found", "You are already on the latest version." },
@@ -2244,8 +2272,8 @@ sealed class Desktop
                     { "update_ready_sub", "Restart AgentDeck to install silently and remove temporary setup files." },
                     { "btn_restart_update", "Restart to update" },
                     { "applying_update", "Applying update and restarting..." },
-                    { "feedback_title", "Send Feedback to @agentdeckbot" },
-                    { "feedback_desc", "Submit a Bug Report, Feature Request, or idea via GlitchTip to open an issue on github.com/natekk8/agentdeck." },
+                    { "feedback_title", "Send Feedback to GitHub via Sentry.io" },
+                    { "feedback_desc", "Submit a Bug Report, Feature Request, or idea via Sentry.io connected to github.com/natekk8/agentdeck." },
                     { "feedback_kind", "Category" },
                     { "cat_bug", "Bug Report" },
                     { "cat_feature", "Feature Request" },
@@ -2256,8 +2284,8 @@ sealed class Desktop
                     { "report_logs_label", "Attach sanitized diagnostics" },
                     { "report_logs_desc", "Includes recent bridge error logs with local usernames redacted." },
                     { "btn_send_report", "Submit Report" },
-                    { "sending_report", "Sending report to GlitchTip..." },
-                    { "report_sent_fmt", "Report sent cleanly! GlitchTip Event: {0}" }
+                    { "sending_report", "Sending report to Sentry.io..." },
+                    { "report_sent_fmt", "Report sent cleanly! Sentry Event: {0}" }
                 }
             },
             {
@@ -2279,8 +2307,8 @@ sealed class Desktop
                     { "sub_devices", "Paruj StickS3 i sprawdzaj poziom baterii oraz połączenie USB / Wi-Fi" },
                     { "sub_wifi", "Konfiguruj sieci bezprzewodowe bezpośrednio na StickS3" },
                     { "sub_remote", "Natywne Remote Control Codex i Antigravity + szyfrowany przekaźnik StickS3" },
-                    { "sub_feedback", "Wysyłaj Bug Reporty i Feature Requesty do @agentdeckbot przez GlitchTip" },
-                    { "sub_settings", "Autostart pod Wake on LAN, język, konfiguracja GlitchTip i aktualizacje" },
+                    { "sub_feedback", "Wysyłaj Bug Reporty i Feature Requesty na GitHub przez Sentry.io" },
+                    { "sub_settings", "Autostart pod Wake on LAN, język, konfiguracja Sentry.io i aktualizacje" },
                     { "projects_title", "Projekty z IDE" },
                     { "filter_all", "Wszystkie" },
                     { "btn_new_project", "+ Nowy projekt" },
@@ -2376,10 +2404,10 @@ sealed class Desktop
                     { "onb_lang_prompt", "Język interfejsu" },
                     { "onb_lang_en_sub", "Domyślny język angielski" },
                     { "onb_lang_pl_sub", "Polski interfejs na PC i Sticku" },
-                    { "onb_step2_title", "Zawsze gotowy do Wake on LAN" },
-                    { "onb_step2_sub", "Potwierdź autostart w tle, aby PC odpowiadał od razu po wybudzeniu ze StickS3." },
-                    { "onb_auto_title", "Uruchamiaj AgentDeck po cichu z Windows" },
-                    { "onb_auto_desc", "Uruchamia w tle wyłącznie lekki mostek bez żadnego okna CMD, dzięki czemu Wake on LAN i prompty działają od razu po starcie." },
+                    { "onb_step2_title", "Dodać do autostartu Windows?" },
+                    { "onb_step2_sub", "AgentDeck zawsze uruchamia się po cichu bez okna CMD. Wybierz, czy włączać go automatycznie z systemem (dla Wake on LAN)." },
+                    { "onb_auto_title", "Włącz autostart AgentDeck przy starcie Windows" },
+                    { "onb_auto_desc", "Domyślnie włączone — cichy mostek startuje w tle razem z Windows, żeby StickS3 i Wake on LAN działały od razu." },
                     { "onb_auto_hint", "Zalecane: komputer jest zawsze gotowy po wybudzeniu przez Wake on LAN." },
                     { "onb_step3_title", "Połącz swoje StickS3" },
                     { "onb_step3_sub", "Sparuj przez USB jednym kliknięciem, aby odblokować podgląd baterii, Wi-Fi i Wake on LAN." },
@@ -2515,12 +2543,12 @@ sealed class Desktop
                     { "channels_saved", "Zapisano kanały dla serwera przekaźnika." },
                     { "relay_reachable", "Stick odpowiada przez przekaźnik." },
                     { "relay_unreachable", "Brak odpowiedzi przez przekaźnik. Sprawdź adres i Wi-Fi." },
-                    { "settings_gt_title", "GlitchTip DSN dla zgłoszeń" },
-                    { "settings_gt_desc", "Klucz projektu (Client Key / DSN) z GlitchTip do wysyłania Bug Reportów i Feature Requestów." },
+                    { "settings_gt_title", "Sentry.io DSN dla zgłoszeń" },
+                    { "settings_gt_desc", "Klucz projektu (Client Key / DSN) z Sentry.io do wysyłania Bug Reportów i Feature Requestów." },
                     { "btn_save_dsn", "Zapisz DSN" },
                     { "configured", "Skonfigurowano" },
                     { "not_configured", "Brak klucza" },
-                    { "dsn_saved", "Zapisano GlitchTip DSN." },
+                    { "dsn_saved", "Zapisano Sentry DSN." },
                     { "btn_check_updates", "Sprawdź aktualizacje" },
                     { "checking_updates", "Sprawdzam nowe wydania na GitHub..." },
                     { "no_updates_found", "Używasz już najnowszej wersji." },
@@ -2537,8 +2565,8 @@ sealed class Desktop
                     { "update_ready_sub", "Uruchom ponownie, aby zainstalować w tle i usunąć tymczasowy instalator." },
                     { "btn_restart_update", "Uruchom ponownie" },
                     { "applying_update", "Aktualizuję i uruchamiam ponownie..." },
-                    { "feedback_title", "Wyślij zgłoszenie do @agentdeckbot" },
-                    { "feedback_desc", "Wyślij Bug Report lub Feature Request przez GlitchTip — automatycznie utworzy zgłoszenie na github.com/natekk8/agentdeck." },
+                    { "feedback_title", "Wyślij zgłoszenie na GitHub przez Sentry.io" },
+                    { "feedback_desc", "Wyślij Bug Report lub Feature Request przez Sentry.io zintegrowane z github.com/natekk8/agentdeck." },
                     { "feedback_kind", "Rodzaj zgłoszenia" },
                     { "cat_bug", "Bug Report" },
                     { "cat_feature", "Feature Request" },
@@ -2549,8 +2577,8 @@ sealed class Desktop
                     { "report_logs_label", "Dołącz zanonimizowane logi" },
                     { "report_logs_desc", "Wysyła końcówkę logów mostka bez prywatnych nazw użytkownika." },
                     { "btn_send_report", "Wyślij zgłoszenie" },
-                    { "sending_report", "Wysyłam zgłoszenie do GlitchTip..." },
-                    { "report_sent_fmt", "Wysłano! Identyfikator GlitchTip: {0}" }
+                    { "sending_report", "Wysyłam zgłoszenie do Sentry.io..." },
+                    { "report_sent_fmt", "Wysłano! Identyfikator Sentry: {0}" }
                 }
             }
         };
