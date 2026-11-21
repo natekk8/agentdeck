@@ -193,10 +193,19 @@ sealed class Desktop
         window.StateChanged += (s, e) =>
         {
             var max = window.WindowState == WindowState.Maximized;
+            window.MaxHeight = max ? SystemParameters.WorkArea.Height + 14 : double.PositiveInfinity;
+            window.MaxWidth = max ? SystemParameters.WorkArea.Width + 14 : double.PositiveInfinity;
+            window.Padding = new Thickness(max ? 7 : 0);
             var box = C<Border>("MainContainer");
             box.CornerRadius = new CornerRadius(max ? 0 : 12);
             box.BorderThickness = new Thickness(max ? 0 : 1);
-            window.Padding = new Thickness(max ? 6 : 0);
+            var maxIcon = C<System.Windows.Shapes.Path>("WinMaxIcon");
+            if (maxIcon != null)
+            {
+                maxIcon.Data = Geometry.Parse(max
+                    ? "M3,1.5 H9.5 V8 M1.5,3.5 H8 V9.5 H1.5 Z"
+                    : "M1.5,1.5 H9.5 V9.5 H1.5 Z");
+            }
         };
 
         foreach (var name in sections)
