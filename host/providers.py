@@ -989,10 +989,15 @@ def codex_run(cwd, model, prompt, mode, stop, update, effort="", lang=DEFAULT_LA
                 raise ProviderError(tr(lang, "codex_no_interrupt"))
 
 
-def agy_run(cwd, model, prompt, mode, stop, update, native_project="", lang=DEFAULT_LANG, ask_user=None):
-    agy_mode = "accept-edits" if mode in ("write", "plan_execute") else "plan"
-    args = [executable("agy", lang=lang), "--model", model, "--mode", agy_mode, "--sandbox",
+def agy_run(cwd, model, prompt, mode, stop, update, native_project="", effort="", lang=DEFAULT_LANG, ask_user=None):
+    # Headless stream-json cannot interactively prompt for tool permissions;
+    # --mode auto + --dangerously-skip-permissions + --sandbox prevents silent auto-denials
+    # while keeping sandbox terminal restrictions active.
+    args = [executable("agy", lang=lang), "--model", model, "--mode", "auto",
+            "--dangerously-skip-permissions", "--sandbox",
             "--disable-slash-commands", "--input-format", "stream-json", "--output-format", "stream-json"]
+    if effort and str(effort).lower() in ("low", "medium", "high", "xhigh", "max"):
+        args.extend(["--effort", str(effort).lower()])
     if native_project:
         args.append("--project=" + native_project)
     with spawn(args, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -1024,6 +1029,7 @@ def agy_run(cwd, model, prompt, mode, stop, update, native_project="", lang=DEFA
             pass
         result = None
         transcript = []
+        streamed = []
         for line in proc.stdout:
             try:
                 event = json.loads(line)
@@ -1036,13 +1042,23 @@ def agy_run(cwd, model, prompt, mode, stop, update, native_project="", lang=DEFA
                 item = event.get("step_update") or {}
                 step = item.get("step_type") or ""
                 if step != "user_input":
-                    label = tr(lang, "agy_reply") if step == "agent_response" else tr(lang, "agy_working")
-                    update(label, preview=(item.get("text_delta") or "")[-180:])
+                    delta = str(item.get("text_delta") or "")
+                    if step == "agent_response" and delta:
+                        streamed.append(delta)
+                    tool_name = str(item.get("tool_name") or "")
+                    label = tr(lang, "agy_reply") if step == "agent_response" else (
+                        f"{tr(lang, 'agy_working')} ({tool_name})" if tool_name else tr(lang, "agy_working")
+                    )
+                    preview_src = delta or tool_name
+                    update(label, preview=preview_src[-180:])
             if kind == "result":
                 result = event.get("result") or {}
                 if result.get("conversation_id"):
                     update(tr(lang, "agy_finishing"), conversation=result["conversation_id"])
                 response_text = str(result.get("response") or "")
+                if not response_text and streamed:
+                    response_text = "".join(streamed).strip()
+                streamed.clear()
                 if response_text:
                     transcript.append(response_text)
                 if result.get("status") == "SUCCESS" and ask_user and not stop.is_set():
@@ -1074,11 +1090,14 @@ def agy_run(cwd, model, prompt, mode, stop, update, native_project="", lang=DEFA
         code = proc.wait()
         cancel_worker.join(timeout=6)
         stderr_worker.join(timeout=1)
-        if result and result.get("status") == "SUCCESS" and code == 0:
-            full_text = "\n\n".join(transcript).strip() or result.get("response") or tr(lang, "agy_finished")
-            return "finished", full_text
         if cancellation.is_set():
             return "cancelled", tr(lang, "agy_cancelled")
+        if result and result.get("status") == "SUCCESS" and code == 0:
+            full_text = "\n\n".join(transcript).strip() or str(result.get("response") or "").strip() or "".join(streamed).strip()
+            denied = result.get("denied_actions") or []
+            if not full_text and denied:
+                raise ProviderError(" ".join(errors).strip()[-480:] or "Antigravity headless tool permission denied.")
+            return "finished", full_text or tr(lang, "agy_finished")
         if result and result.get("status") == "ERROR":
             errors.append(str(result.get("error") or result.get("response") or ""))
         raise ProviderError(" ".join(errors).strip()[-480:] or tr(lang, "agy_exit_code", code=code))

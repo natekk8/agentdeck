@@ -713,6 +713,23 @@ class BridgeTest(unittest.TestCase):
                 self.assertIn("Remove-Item -LiteralPath", ps_text)
                 self.assertIn("Start-Process -FilePath", ps_text)
 
+    def test_delete_and_clear_sessions(self):
+        j1 = self.launch("codex")
+        j2 = self.launch("agy")
+        self.deck.tick()
+        self.wait(lambda: self.deck.jobs[j1]["state"] == "finished" and self.deck.jobs[j2]["state"] == "finished")
+        self.assertTrue(self.deck.result_path(j1).exists())
+
+        res1 = self.deck.desktop("delete_session", {"job": j1})
+        self.assertEqual(j1, res1["deleted"])
+        self.assertNotIn(j1, self.deck.jobs)
+        self.assertFalse(self.deck.result_path(j1).exists())
+
+        res2 = self.deck.desktop("clear_sessions", {})
+        self.assertEqual(1, res2["deleted"])
+        self.assertNotIn(j2, self.deck.jobs)
+
+
 
 
 if __name__ == "__main__":

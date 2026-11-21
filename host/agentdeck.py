@@ -697,7 +697,7 @@ class Deck:
             if proc.returncode != 0:
                 detail = (proc.stderr or proc.stdout or "").strip()[-240:]
                 raise ValueError(tr(lang, "stick_flash_failed", detail=detail or f"exit {proc.returncode}"))
-            return {"flashed": True, "port": target_port}
+            return {"flashed": True, "port": target_port, "firmware": EXPECTED_STICK_FIRMWARE}
         finally:
             links.usb_paused.clear()
 
@@ -821,6 +821,40 @@ class Deck:
                 )
             if operation == "recent_sessions":
                 return self.listing("sessions", {"limit": 30}) | self.overview()[0]
+            if operation == "delete_session":
+                ident = str(request.get("job") or "").strip()
+                job = self.jobs.get(ident)
+                if not job:
+                    raise ValueError(tr(lang, "select_stick_session"))
+                if job["state"] in ACTIVE:
+                    stop = self.stops.get(ident)
+                    if stop:
+                        stop.set()
+                    pending_q = self.pending_questions.pop(ident, None)
+                    if pending_q:
+                        pending_q["event"].set()
+                self.jobs.pop(ident, None)
+                self.job_prompts.pop(ident, None)
+                try:
+                    self.result_path(ident).unlink(missing_ok=True)
+                except OSError:
+                    pass
+                self.save()
+                return {"deleted": ident}
+            if operation == "clear_sessions":
+                removed = []
+                for ident, job in list(self.jobs.items()):
+                    if job["state"] in ACTIVE:
+                        continue
+                    self.jobs.pop(ident, None)
+                    self.job_prompts.pop(ident, None)
+                    try:
+                        self.result_path(ident).unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                    removed.append(ident)
+                self.save()
+                return {"deleted": len(removed)}
             if operation == "session_details":
                 ident = request.get("job")
                 job = self.jobs.get(ident)
@@ -1388,7 +1422,7 @@ class Deck:
                 options = {"native_project": native, "lang": lang, "ask_user": ask_user} if job["provider"] == "agy" else {"lang": lang, "ask_user": ask_user}
                 if job["provider"] == "agy" and not native:
                     options.pop("native_project", None)
-                if job["provider"] == "codex" and job.get("effort") not in ("", "default", None):
+                if job.get("effort") not in ("", "default", None):
                     options["effort"] = job["effort"]
                 status, detail = PROVIDERS[job["provider"]][1](
                     path, job["model"], guard + body, job["mode"], stop, update, **options)

@@ -245,6 +245,8 @@ sealed class Desktop
             try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
             catch (Exception error) { Note(error.Message, true); }
         });
+        Action("DeleteSessionBtn", "deleting_session", DeleteSelectedSession);
+        Action("ClearSessionsBtn", "clearing_sessions", ClearFinishedSessions);
 
         C<ListBox>("CodexAccountList").AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(OnCodexListButtonClick));
 
@@ -331,6 +333,9 @@ sealed class Desktop
         C<Button>("UpdateActionBtn").Click += async (s, e) => await HandleUpdateBannerClick();
         Button("UpdateDismissBtn", HideUpdateBanner);
         Action("StickFwUpdateBtn", "stick_fw_flashing", FlashStickFirmware);
+        Action("FlashStickBtn", "stick_fw_flashing", FlashStickFirmware);
+        Action("OnbFlashUsbBtn", "stick_fw_flashing", FlashStickFirmware);
+        Action("AfterUpdateFlashBtn", "stick_fw_flashing", FlashStickFirmware);
         Button("StickFwDismissBtn", () => { stickFwDismissed = true; C<Border>("StickFwBanner").Visibility = Visibility.Collapsed; });
         C<Button>("AfterUpdateCloseBtn").Click += async (s, e) => await CloseAfterUpdate();
 
@@ -1551,7 +1556,32 @@ sealed class Desktop
         var res = await Api("stick_flash_firmware");
         stickFwDismissed = true;
         C<Border>("StickFwBanner").Visibility = Visibility.Collapsed;
-        Note(string.Format(L("stick_fw_flashed_fmt"), Str(res, "firmware")));
+        var fw = Str(res, "firmware");
+        if (fw.Length == 0) fw = "1.0.0";
+        Note(string.Format(L("stick_fw_flashed_fmt"), fw));
+        await RefreshState();
+    }
+
+    async Task DeleteSelectedSession()
+    {
+        var id = Str(Selected("SessionList"), "id");
+        if (id.Length == 0) return;
+        await Api("delete_session", "job", id);
+        sessionSignature = "";
+        C<TextBox>("SessionAnswer").Clear();
+        C<TextBlock>("SessionLocation").Text = L("select_session_prompt");
+        C<Button>("DeleteSessionBtn").IsEnabled = false;
+        Note(L("session_deleted"));
+        await RefreshState();
+    }
+
+    async Task ClearFinishedSessions()
+    {
+        var res = await Api("clear_sessions");
+        sessionSignature = "";
+        C<TextBox>("SessionAnswer").Clear();
+        C<TextBlock>("SessionLocation").Text = L("select_session_prompt");
+        Note(string.Format(L("sessions_cleared_fmt"), IntVal(res, "deleted")));
         await RefreshState();
     }
 
@@ -1847,6 +1877,7 @@ sealed class Desktop
         var id = Str(Selected("SessionList"), "id");
         C<Button>("OpenConversation").IsEnabled = false;
         C<Button>("OpenAnswer").IsEnabled = false;
+        C<Button>("DeleteSessionBtn").IsEnabled = id.Length > 0;
         C<Button>("OpenAnswer").Tag = null;
         C<Border>("QuestionPanel").Visibility = Visibility.Collapsed;
         C<TextBox>("SessionAnswer").Clear();
@@ -2094,9 +2125,16 @@ sealed class Desktop
         C<TextBlock>("ReportLogsLabel").Text = L("report_logs_label");
         C<TextBlock>("ReportLogsDesc").Text = L("report_logs_desc");
         C<Button>("SendReportBtn").Content = L("btn_send_report");
+        C<Button>("DeleteSessionBtn").Content = L("btn_delete_session");
+        C<Button>("ClearSessionsBtn").Content = L("btn_clear_sessions");
+        C<Button>("FlashStickBtn").Content = L("btn_flash_stick");
+        C<Button>("OnbFlashUsbBtn").Content = L("btn_flash_stick");
+        C<Button>("AfterUpdateFlashBtn").Content = L("btn_flash_stick");
         C<TextBlock>("AfterUpdateTitle").Text = L("after_update_title");
         C<TextBlock>("AfterUpdateSub").Text = L("after_update_sub");
         C<TextBlock>("AfterUpdateNotes").Text = L("after_update_notes");
+        C<TextBlock>("AfterUpdateUsbTitle").Text = L("after_update_usb_title");
+        C<TextBlock>("AfterUpdateUsbHint").Text = L("after_update_usb_hint");
         C<Button>("AfterUpdateCloseBtn").Content = L("after_update_btn");
 
         if (lastDevicesResult.Count > 0) UpdateStickFirmwareBanner(lastDevicesResult);
@@ -2410,8 +2448,17 @@ sealed class Desktop
                     { "stick_fw_flashed_fmt", "StickS3 updated cleanly to v{0}." },
                     { "after_update_title", "Updated to AgentDeck (v1 Preview)" },
                     { "after_update_sub", "Everything is ready on your PC." },
-                    { "after_update_notes", "• Cleaner Apple-style layout with ambient animations and responsive sizing\n• Live Auto-Updater & 1-click USB firmware prompt for StickS3\n• Working Antigravity Remote Control, Relay & Sentry feedback reporting" },
-                    { "after_update_btn", "Continue to AgentDeck" }
+                    { "after_update_notes", "• Cleaner Apple-style layout with ambient animations and responsive sizing\n• Live Auto-Updater & 1-click USB firmware flash for StickS3\n• Fixed Antigravity headless execution, session deletion & Sentry reporting" },
+                    { "after_update_usb_title", "StickS3 Firmware (v1.0.0)" },
+                    { "after_update_usb_hint", "Plug in M5Stick S3 via USB-C to flash the latest AgentDeck firmware in one click." },
+                    { "after_update_btn", "Continue to AgentDeck" },
+                    { "btn_delete_session", "Delete Session" },
+                    { "btn_clear_sessions", "Clear Finished" },
+                    { "deleting_session", "Deleting session..." },
+                    { "clearing_sessions", "Clearing finished sessions..." },
+                    { "session_deleted", "Session deleted." },
+                    { "sessions_cleared_fmt", "Cleared {0} finished session(s)." },
+                    { "btn_flash_stick", "Flash Firmware (USB)" }
                 }
             },
             {
@@ -2715,8 +2762,17 @@ sealed class Desktop
                     { "stick_fw_flashed_fmt", "Zaktualizowano StickS3 do wersji v{0}." },
                     { "after_update_title", "Zaktualizowano do AgentDeck (v1 Preview)" },
                     { "after_update_sub", "Wszystko jest gotowe do pracy na Twoim PC." },
-                    { "after_update_notes", "• Dopracowany układ bez ucięć, orby w tle i płynny spinner pracy\n• Działający Auto-Updater i przypomnienie o aktualizacji StickS3 przez USB\n• Sprawny Remote Control Antigravity, przekaźnik oraz zgłoszenia Sentry" },
-                    { "after_update_btn", "Przejdź do AgentDeck" }
+                    { "after_update_notes", "• Dopracowany układ przycisków, marginesy, zaokrąglone listy i płynne animacje\n• Wgrywanie najnowszego firmware StickS3 (v1.0.0) przez USB jednym kliknięciem\n• Naprawione działanie Antigravity w tle, usuwanie sesji oraz Auto-Updater" },
+                    { "after_update_usb_title", "Firmware StickS3 (v1.0.0)" },
+                    { "after_update_usb_hint", "Podłącz M5Stick S3 kablem USB-C, aby wgrać najnowszą wersję AgentDeck na Sticka." },
+                    { "after_update_btn", "Przejdź do AgentDeck" },
+                    { "btn_delete_session", "Usuń sesję" },
+                    { "btn_clear_sessions", "Wyczyść ukończone" },
+                    { "deleting_session", "Usuwam sesję..." },
+                    { "clearing_sessions", "Czyszczę ukończone sesje..." },
+                    { "session_deleted", "Usunięto sesję." },
+                    { "sessions_cleared_fmt", "Usunięto ukończone sesje: {0}." },
+                    { "btn_flash_stick", "Wgraj firmware (USB)" }
                 }
             }
         };

@@ -66,27 +66,30 @@
 
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
-      <Setter Property="Background" Value="#171E30"/>
+      <Setter Property="Background" Value="#161E31"/>
       <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
       <Setter Property="Padding" Value="15,8"/>
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Setter Property="FontWeight" Value="Medium"/>
       <Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="Margin" Value="0,0,8,6"/>
+      <Setter Property="Margin" Value="0,0,8,8"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalAlignment="Center"/>
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Tile" Property="BorderBrush" Value="#5F8BFF"/>
-                <Setter TargetName="Tile" Property="Background" Value="#1D2740"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1E2944"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="Tile" Property="Opacity" Value="0.78"/>
+                <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
@@ -98,7 +101,7 @@
     </Style>
 
     <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="#5F8BFF"/>
+      <Setter Property="Background" Value="#5582FF"/>
       <Setter Property="Foreground" Value="#FFFFFF"/>
       <Setter Property="BorderBrush" Value="#739BFF"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
@@ -108,11 +111,11 @@
             <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalAlignment="Center"/>
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="Background" Value="#799FFF"/>
+                <Setter TargetName="Tile" Property="Background" Value="#7097FF"/>
                 <Setter TargetName="Tile" Property="BorderBrush" Value="#9AB8FF"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
@@ -137,7 +140,7 @@
             <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalAlignment="Center"/>
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
@@ -154,9 +157,33 @@
     </Style>
 
     <Style x:Key="PillBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Padding" Value="12,5"/>
+      <Setter Property="Padding" Value="13,5"/>
+      <Setter Property="MinHeight" Value="30"/>
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Margin" Value="0,0,6,0"/>
+      <Setter Property="Margin" Value="0,0,7,7"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="15" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#5F8BFF"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1E2944"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <Style x:Key="ChromeBtn" TargetType="Button">
@@ -263,7 +290,8 @@
       <Setter Property="Background" Value="{StaticResource InputBg}"/>
       <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
       <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
-      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Padding" Value="12,8"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
@@ -371,8 +399,20 @@
       <Setter Property="Background" Value="{StaticResource InputBg}"/>
       <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Padding" Value="5"/>
+      <Setter Property="Padding" Value="6"/>
       <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBox">
+            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+              <ScrollViewer Focusable="False">
+                <ItemsPresenter/>
+              </ScrollViewer>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <Style TargetType="ListBoxItem">
@@ -663,10 +703,10 @@
                       <Button Name="FilterAgy" Style="{StaticResource PillBtn}" Content="Antigravity"/>
                       <Button Name="FilterCodex" Style="{StaticResource PillBtn}" Content="Codex"/>
                     </WrapPanel>
-                    <WrapPanel>
-                      <Button Name="NewProjectBtn" Style="{StaticResource PrimaryBtn}" Padding="12,6" FontSize="12.5" Content="+ New Project"/>
-                      <Button Name="RenameProjectBtn" Padding="12,6" FontSize="12.5" Content="Rename"/>
-                      <Button Name="AddProject" Padding="12,6" FontSize="12.5" Content="Add Folder" Margin="0"/>
+                    <WrapPanel Margin="0,0,0,4">
+                      <Button Name="NewProjectBtn" Style="{StaticResource PrimaryBtn}" Padding="13,6" MinHeight="32" FontSize="12.5" Content="+ New Project"/>
+                      <Button Name="RenameProjectBtn" Padding="13,6" MinHeight="32" FontSize="12.5" Content="Rename"/>
+                      <Button Name="AddProject" Padding="13,6" MinHeight="32" FontSize="12.5" Content="Add Folder"/>
                     </WrapPanel>
                   </StackPanel>
 
@@ -802,9 +842,11 @@
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
-                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                   <Button Name="OpenConversation" Style="{StaticResource PrimaryBtn}" Content="Open in Antigravity CLI" IsEnabled="False"/>
                   <Button Name="OpenAnswer" Content="Open Output File" IsEnabled="False"/>
+                  <Button Name="DeleteSessionBtn" Style="{StaticResource DangerBtn}" Content="Delete Session" IsEnabled="False"/>
+                  <Button Name="ClearSessionsBtn" Content="Clear Finished"/>
                 </WrapPanel>
                 <TextBlock Name="SessionLocation" DockPanel.Dock="Top" Foreground="{StaticResource Muted}"
                            TextWrapping="Wrap" Margin="0,0,0,8" Text="Select a session to read its output."/>
@@ -961,9 +1003,10 @@
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
-                <WrapPanel Grid.Row="2" Margin="0,14,0,14">
+                <WrapPanel Grid.Row="2" Margin="0,14,0,10">
                   <Button Name="ShowCode" Content="Show Code on Stick"/>
                   <Button Name="PairUsb" Style="{StaticResource PrimaryBtn}" Content="Pair via USB"/>
+                  <Button Name="FlashStickBtn" Content="Flash Firmware (USB)"/>
                   <Button Name="PairUsbCode" Content="USB with Code"/>
                   <Button Name="FindDevices" Content="Scan LAN"/>
                   <Button Name="ForgetDevice" Style="{StaticResource DangerBtn}" Content="Remove Pairing"/>
@@ -1309,8 +1352,11 @@
                     <TextBlock Name="OnbStickState" Text="Checking USB connection..." FontSize="14.5" FontWeight="SemiBold"/>
                   </StackPanel>
                   <TextBlock Name="OnbStickDetail" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
-                             Text="Plug your M5Stick S3 into USB-C to pair in one click, or skip and pair anytime in Devices."/>
-                  <Button Name="OnbPairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair StickS3 via USB" HorizontalAlignment="Left" Margin="0"/>
+                             Text="Plug your M5Stick S3 into USB-C to pair or flash the latest AgentDeck firmware in one click, or skip and do it anytime in Devices."/>
+                  <WrapPanel>
+                    <Button Name="OnbPairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair StickS3 via USB"/>
+                    <Button Name="OnbFlashUsbBtn" Content="Flash Latest Firmware (USB)"/>
+                  </WrapPanel>
                 </StackPanel>
               </Border>
             </StackPanel>
@@ -1358,9 +1404,19 @@
                 </StackPanel>
               </StackPanel>
             </DockPanel>
-            <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,18">
+            <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,14">
               <TextBlock Name="AfterUpdateNotes" FontSize="13" Foreground="#D4DCEB" TextWrapping="Wrap" LineHeight="20"
                          Text="• Cleaner Apple-style layout with ambient animations and responsive sizing&#10;• Live Auto-Updater &amp; 1-click USB firmware prompt for StickS3&#10;• Working Antigravity Remote Control, Relay &amp; Sentry feedback reporting"/>
+            </Border>
+            <Border Background="#0B0F1A" BorderBrush="#243554" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,18">
+              <DockPanel>
+                <Button Name="AfterUpdateFlashBtn" DockPanel.Dock="Right" Content="Flash StickS3 (USB)" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Name="AfterUpdateUsbTitle" FontSize="13" FontWeight="SemiBold" Text="StickS3 Firmware (v1.0.0)"/>
+                  <TextBlock Name="AfterUpdateUsbHint" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"
+                             Text="Plug in M5Stick S3 via USB-C to install the latest firmware."/>
+                </StackPanel>
+              </DockPanel>
             </Border>
             <Button Name="AfterUpdateCloseBtn" Style="{StaticResource PrimaryBtn}" Content="Continue to AgentDeck" HorizontalAlignment="Right" Margin="0"/>
           </StackPanel>
