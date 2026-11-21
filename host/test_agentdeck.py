@@ -646,25 +646,25 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual("pl", self.deck.desktop("settings_get", {})["language"])
 
     def test_last_seen_version_persists(self):
-        saved = self.deck.desktop("settings_save", {"last_seen_version": "1.0.0"})
-        self.assertEqual("1.0.0", saved["last_seen_version"])
+        saved = self.deck.desktop("settings_save", {"last_seen_version": "1.1.0"})
+        self.assertEqual("1.1.0", saved["last_seen_version"])
         loaded = self.deck.desktop("settings_get", {})
-        self.assertEqual("1.0.0", loaded["last_seen_version"])
-        self.assertEqual("1.0.0", loaded["version"])
-        self.assertEqual("v1 Preview", loaded["display_version"])
+        self.assertEqual("1.1.0", loaded["last_seen_version"])
+        self.assertEqual("1.1.0", loaded["version"])
+        self.assertEqual("v1.1", loaded["display_version"])
 
     def test_devices_reports_firmware_update_needed(self):
         links = Links(Path(self.temp.name), self.deck, lambda *a: None)
         dev_id = "aabbccddeeff001122334455"
-        links.observe({"device": dev_id, "firmware": "0.6.0", "battery": 88}, usb=True)
+        links.observe({"device": dev_id, "firmware": "1.0.0", "battery": 88}, usb=True)
         info = links.devices()
-        self.assertEqual("1.0.0", info["expected_firmware"])
-        self.assertEqual("0.6.0", info["stick_firmware"])
+        self.assertEqual("1.1.0", info["expected_firmware"])
+        self.assertEqual("1.0.0", info["stick_firmware"])
         self.assertTrue(info["firmware_update_needed"])
 
-        links.observe({"device": dev_id, "firmware": "1.0.0", "battery": 88}, usb=True)
+        links.observe({"device": dev_id, "firmware": "1.1.0", "battery": 88}, usb=True)
         info2 = links.devices()
-        self.assertEqual("1.0.0", info2["stick_firmware"])
+        self.assertEqual("1.1.0", info2["stick_firmware"])
         self.assertFalse(info2["firmware_update_needed"])
 
     def test_updater_download_and_apply_script(self):
@@ -728,6 +728,26 @@ class BridgeTest(unittest.TestCase):
         res2 = self.deck.desktop("clear_sessions", {})
         self.assertEqual(1, res2["deleted"])
         self.assertNotIn(j2, self.deck.jobs)
+
+    def test_home_ide_status_overview_and_quick_prompt(self):
+        ides = self.deck.desktop("ide_status", {})["ides"]
+        self.assertTrue(ides["agy"]["installed"])
+        self.assertTrue(ides["codex"]["installed"])
+        ov, _ = self.deck.overview()
+        self.assertTrue(ov["has_agy"])
+        self.assertTrue(ov["has_codex"])
+
+        started = self.deck.desktop("start_prompt", {
+            "provider": "agy",
+            "project": self.project,
+            "text": "Quick audit test",
+            "mode": "read",
+        })
+        jid = started["job"]["id"]
+        self.wait(lambda: self.deck.jobs[jid]["state"] == "finished")
+        details = self.deck.desktop("session_details", {"job": jid})
+        self.assertEqual("finished", details["state"])
+
 
 
 

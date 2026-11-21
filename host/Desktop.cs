@@ -31,7 +31,7 @@ sealed class Desktop
     readonly string marker;
     readonly HttpClient client = new HttpClient(new HttpClientHandler { UseProxy = false });
     readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
-    readonly string[] sections = { "Prompts", "Sessions", "Accounts", "Devices", "Wifi", "Remote", "Feedback", "Settings" };
+    readonly string[] sections = { "Home", "Prompts", "Sessions", "Accounts", "Devices", "Wifi", "Remote", "Feedback", "Settings" };
     readonly SolidColorBrush mint = Brush("#34D399");
     readonly SolidColorBrush blue = Brush("#60A5FA");
     readonly SolidColorBrush accent = Brush("#5F8BFF");
@@ -334,6 +334,13 @@ sealed class Desktop
         Button("UpdateDismissBtn", HideUpdateBanner);
         Action("StickFwUpdateBtn", "stick_fw_flashing", FlashStickFirmware);
         Action("FlashStickBtn", "stick_fw_flashing", FlashStickFirmware);
+        Action("HomeFlashUsbBtn", "stick_fw_flashing", FlashStickFirmware);
+        Action("HomePairUsbBtn", "pairing_usb", OnboardingPairUsb);
+        Action("HomeSendBtn", "sending_home_prompt", SendHomePrompt);
+        Button("HomeOpenSessionsBtn", () => Navigate("Sessions"));
+        Action("RefreshIdeBtn", "checking_ides", () => RefreshIdeStatus(true));
+        Action("InstallAgyBtn", "installing_agy", () => InstallIde("agy"));
+        Action("InstallCodexBtn", "installing_codex", () => InstallIde("codex"));
         Action("OnbFlashUsbBtn", "stick_fw_flashing", FlashStickFirmware);
         Action("AfterUpdateFlashBtn", "stick_fw_flashing", FlashStickFirmware);
         Button("StickFwDismissBtn", () => { stickFwDismissed = true; C<Border>("StickFwBanner").Visibility = Visibility.Collapsed; });
@@ -373,7 +380,8 @@ sealed class Desktop
             ApplyLanguage();
             UpdateFilterButtons();
             SetReportKind("bug");
-            Navigate("Prompts");
+            C<ComboBox>("HomeMode").SelectedIndex = 0;
+            Navigate("Home");
             await Work(L("loading_projects"), async () =>
             {
                 var settings = await Api("settings_get");
@@ -388,6 +396,7 @@ sealed class Desktop
                 if (dver.Length > 0) C<TextBlock>("VersionBadge").Text = dver;
                 ApplyLanguage();
                 await ReadProjects("");
+                await RefreshIdeStatus(false);
                 var relay = await Api("relay_get");
                 C<TextBox>("RelayAddress").Text = Str(relay, "endpoint");
                 UpdateLocalRelayBadge(Obj(relay, "local_relay"));
@@ -593,6 +602,7 @@ sealed class Desktop
         }
         if (name == "Accounts") { var t = RefreshAccounts(false); }
         else if (name == "Remote") { var t = RefreshRemoteControl(); }
+        else if (name == "Home") { var t = RefreshIdeStatus(false); }
     }
 
     void UpdateHeading()
@@ -740,6 +750,67 @@ sealed class Desktop
         }, selected);
         if (C<ListBox>("ProjectList").SelectedIndex < 0 && C<ListBox>("ProjectList").Items.Count > 0)
             C<ListBox>("ProjectList").SelectedIndex = 0;
+
+        var realProjects = Rows(result, "items");
+        var prevHomeProj = Str(Selected("HomeProject"), "id");
+        Fill("HomeProject", realProjects, row => Str(row, "label") + "  ·  " + Str(row, "path"), prevHomeProj);
+    }
+
+    async Task RefreshIdeStatus(bool force)
+    {
+        var res = await Api("ide_status", "force", force);
+        var ides = Obj(res, "ides");
+        var agy = Obj(ides, "agy");
+        var codex = Obj(ides, "codex");
+        UpdateIdeRow("Agy", agy);
+        UpdateIdeRow("Codex", codex);
+
+        var installedList = new List<Record>();
+        if (Flag(agy, "installed")) installedList.Add(new Record { { "id", "agy" }, { "label", "Antigravity CLI" } });
+        if (Flag(codex, "installed")) installedList.Add(new Record { { "id", "codex" }, { "label", "ChatGPT Codex" } });
+        var prevProv = Str(Selected("HomeProvider"), "id");
+        Fill("HomeProvider", installedList, r => Str(r, "label"), prevProv);
+        C<Button>("HomeSendBtn").IsEnabled = installedList.Count > 0;
+    }
+
+    void UpdateIdeRow(string prefix, Record info)
+    {
+        bool installed = Flag(info, "installed");
+        string ver = Str(info, "version");
+        string path = Str(info, "path");
+        C<TextBlock>(prefix + "IdeStatus").Text = installed ? L("ide_installed") : L("ide_missing");
+        C<TextBlock>(prefix + "IdeStatus").Foreground = installed ? mint : amber;
+        C<Border>(prefix + "IdeBadge").Background = installed ? Brush("#0F2D24") : Brush("#2E2210");
+        C<Border>(prefix + "IdeBadge").BorderBrush = installed ? Brush("#1F5B4A") : Brush("#6E4E18");
+        C<TextBlock>(prefix + "IdeDetail").Text = installed
+            ? (ver.Length > 0 ? ver : path)
+            : L("ide_not_detected_hint");
+        C<Button>("Install" + prefix + "Btn").Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    async Task InstallIde(string provider)
+    {
+        await Api("ide_install", "provider", provider);
+        await RefreshIdeStatus(true);
+        Note(string.Format(L("ide_installed_fmt"), provider == "agy" ? "Antigravity CLI" : "ChatGPT Codex"));
+    }
+
+    async Task SendHomePrompt()
+    {
+        var prov = Str(Selected("HomeProvider"), "id");
+        var proj = Str(Selected("HomeProject"), "id");
+        var text = C<TextBox>("HomePromptText").Text.Trim();
+        var modeItem = C<ComboBox>("HomeMode").SelectedItem as ComboBoxItem;
+        var mode = modeItem != null && modeItem.Tag != null ? modeItem.Tag.ToString() : "read";
+        if (prov.Length == 0) throw new InvalidOperationException(L("err_no_ide_installed"));
+        if (proj.Length == 0) throw new InvalidOperationException(L("err_select_project"));
+        if (text.Length == 0) throw new InvalidOperationException(L("err_enter_prompt"));
+        await Api("start_prompt", "provider", prov, "project", proj, "text", text, "mode", mode);
+        C<TextBox>("HomePromptText").Clear();
+        sessionSignature = "";
+        Note(L("prompt_sent"));
+        Navigate("Sessions");
+        await RefreshState();
     }
 
     sealed class PromptTemplate
@@ -1695,6 +1766,20 @@ sealed class Desktop
         badge.BorderBrush = bd;
     }
 
+    void UpdateHomeStickCard(Record result, Record snapshot, bool isConnected)
+    {
+        var usb = Flag(result, "usb");
+        var bat = IntVal(snapshot, "battery");
+        var chg = Flag(snapshot, "charging");
+        var fw = Str(result, "stick_firmware");
+        var batStr = bat >= 0 ? (" · " + (chg ? "⚡ " : "") + bat + "%") : "";
+        var fwStr = fw.Length > 0 ? (" · v" + fw) : "";
+        C<Ellipse>("HomeStickDot").Fill = usb ? mint : isConnected ? blue : amber;
+        C<TextBlock>("HomeStickStatus").Text = (usb ? L("stick_usb") : isConnected ? L("stick_wifi") : L("waiting_stick")) + batStr + fwStr;
+        C<TextBlock>("HomeStickDetail").Text = usb ? L("home_stick_usb_ok") : L("home_stick_usb_wait");
+        C<Button>("HomePairUsbBtn").IsEnabled = usb;
+    }
+
     void UpdateStickFirmwareBanner(Record result)
     {
         var banner = window.FindName("StickFwBanner") as Border;
@@ -1771,6 +1856,7 @@ sealed class Desktop
             C<TextBlock>("LinkStatus").Foreground = isConnected ? mint : muted;
             UpdateSidebarBattery(snapshot);
             UpdateStickFirmwareBanner(result);
+            UpdateHomeStickCard(result, snapshot, isConnected);
             C<TextBlock>("Context").Text = Display(snapshot, "project_name", Display(snapshot, "session", Display(snapshot, "screen", L("waiting_stick"))));
             C<TextBlock>("WifiStatus").Text = Display(snapshot, "ssid", L("stick_no_wifi")) + "  " + Str(snapshot, "wifi_message");
             UpdateOnboardingStick(result);
@@ -2022,7 +2108,26 @@ sealed class Desktop
     {
         window.Title = L("window_title");
         C<TextBlock>("BrandTagline").Text = L("tagline");
+        C<TextBlock>("NavHomeText").Text = L("nav_home");
         C<TextBlock>("NavPromptsText").Text = L("nav_prompts");
+        C<TextBlock>("HomeQuickTitle").Text = L("home_quick_title");
+        C<TextBlock>("HomeQuickDesc").Text = L("home_quick_desc");
+        C<TextBlock>("HomeIdeLabel").Text = L("home_ide_label");
+        C<TextBlock>("HomeModeLabel").Text = L("home_mode_label");
+        C<ComboBoxItem>("HomeModeRead").Content = L("home_mode_read");
+        C<ComboBoxItem>("HomeModeWrite").Content = L("home_mode_write");
+        C<TextBlock>("HomeProjectLabel").Text = L("home_project_label");
+        C<TextBlock>("HomePromptLabel").Text = L("home_prompt_label");
+        C<Button>("HomeSendBtn").Content = L("btn_send_prompt");
+        C<Button>("HomeOpenSessionsBtn").Content = L("btn_open_sessions");
+        C<TextBlock>("HomeIdesTitle").Text = L("home_ides_title");
+        C<TextBlock>("HomeIdesDesc").Text = L("home_ides_desc");
+        C<Button>("RefreshIdeBtn").Content = L("btn_refresh");
+        C<Button>("InstallAgyBtn").Content = L("btn_install");
+        C<Button>("InstallCodexBtn").Content = L("btn_install");
+        C<TextBlock>("HomeStickTitle").Text = L("home_stick_title");
+        C<Button>("HomePairUsbBtn").Content = L("btn_pair_usb");
+        C<Button>("HomeFlashUsbBtn").Content = L("btn_flash_stick");
         C<TextBlock>("NavSessionsText").Text = L("nav_sessions");
         C<TextBlock>("NavAccountsText").Text = L("nav_accounts");
         C<TextBlock>("NavDevicesText").Text = L("nav_devices");
@@ -2150,8 +2255,9 @@ sealed class Desktop
             {
                 "en", new Dictionary<string, string>
                 {
-                    { "window_title", "AgentDeck (v1 Preview) | Remote AI IDE control in your pocket." },
+                    { "window_title", "AgentDeck (v1.1) | Remote AI IDE control in your pocket." },
                     { "tagline", "Remote AI IDE control in your pocket." },
+                    { "nav_home", "Home" },
                     { "nav_prompts", "Projects & Prompts" },
                     { "nav_sessions", "Sessions" },
                     { "nav_accounts", "Accounts" },
@@ -2446,11 +2552,11 @@ sealed class Desktop
                     { "stick_fw_btn", "Update StickS3 Firmware" },
                     { "stick_fw_flashing", "Flashing StickS3 firmware via USB..." },
                     { "stick_fw_flashed_fmt", "StickS3 updated cleanly to v{0}." },
-                    { "after_update_title", "Updated to AgentDeck (v1 Preview)" },
+                    { "after_update_title", "Updated to AgentDeck (v1.1)" },
                     { "after_update_sub", "Everything is ready on your PC." },
-                    { "after_update_notes", "• Cleaner Apple-style layout with ambient animations and responsive sizing\n• Live Auto-Updater & 1-click USB firmware flash for StickS3\n• Fixed Antigravity headless execution, session deletion & Sentry reporting" },
-                    { "after_update_usb_title", "StickS3 Firmware (v1.0.0)" },
-                    { "after_update_usb_hint", "Plug in M5Stick S3 via USB-C to flash the latest AgentDeck firmware in one click." },
+                    { "after_update_notes", "• New Home dashboard with Quick Prompt launcher & 1-click AI IDE manager\n• Full Antigravity & Codex multi-subagent output without early cutoff\n• Dynamic StickS3 menu showing only installed IDEs & session deletion" },
+                    { "after_update_usb_title", "StickS3 Firmware (v1.1.0)" },
+                    { "after_update_usb_hint", "Plug in M5Stick S3 via USB-C to flash the latest AgentDeck v1.1 firmware in one click." },
                     { "after_update_btn", "Continue to AgentDeck" },
                     { "btn_delete_session", "Delete Session" },
                     { "btn_clear_sessions", "Clear Finished" },
@@ -2458,14 +2564,44 @@ sealed class Desktop
                     { "clearing_sessions", "Clearing finished sessions..." },
                     { "session_deleted", "Session deleted." },
                     { "sessions_cleared_fmt", "Cleared {0} finished session(s)." },
-                    { "btn_flash_stick", "Flash Firmware (USB)" }
+                    { "btn_flash_stick", "Flash Firmware (USB)" },
+                    { "sub_home", "Send prompts, manage Antigravity CLI & ChatGPT Codex, and connect StickS3" },
+                    { "home_quick_title", "Quick Prompt" },
+                    { "home_quick_desc", "Run a prompt directly from Windows using your installed AI IDE and watch progress live in Sessions." },
+                    { "home_ide_label", "AI IDE" },
+                    { "home_mode_label", "Mode" },
+                    { "home_mode_read", "Read-only (Analysis)" },
+                    { "home_mode_write", "Write (Edit files)" },
+                    { "home_project_label", "Project" },
+                    { "home_prompt_label", "Prompt" },
+                    { "btn_send_prompt", "Send Prompt" },
+                    { "btn_open_sessions", "Open Sessions" },
+                    { "home_ides_title", "Installed AI IDEs" },
+                    { "home_ides_desc", "Only installed IDEs appear on your StickS3. Install missing CLIs in one click." },
+                    { "ide_installed", "Installed" },
+                    { "ide_missing", "Not installed" },
+                    { "ide_not_detected_hint", "Click Install to set up automatically." },
+                    { "btn_install", "Install" },
+                    { "checking_ides", "Checking installed AI IDEs..." },
+                    { "installing_agy", "Installing Antigravity CLI..." },
+                    { "installing_codex", "Installing ChatGPT Codex CLI..." },
+                    { "ide_installed_fmt", "{0} installed cleanly." },
+                    { "home_stick_title", "StickS3 Connection" },
+                    { "home_stick_usb_ok", "StickS3 connected via USB-C. Ready to pair or update firmware." },
+                    { "home_stick_usb_wait", "Connect M5Stick S3 via USB-C to pair or flash the latest firmware." },
+                    { "sending_home_prompt", "Launching prompt session..." },
+                    { "prompt_sent", "Prompt started! Watching live in Sessions." },
+                    { "err_no_ide_installed", "Install Antigravity CLI or ChatGPT Codex first." },
+                    { "err_select_project", "Select a project first." },
+                    { "err_enter_prompt", "Enter a prompt first." }
                 }
             },
             {
                 "pl", new Dictionary<string, string>
                 {
-                    { "window_title", "AgentDeck (v1 Preview) | Zdalne sterowanie AI IDE w Twojej kieszeni." },
+                    { "window_title", "AgentDeck (v1.1) | Zdalne sterowanie AI IDE w Twojej kieszeni." },
                     { "tagline", "Zdalne sterowanie AI IDE w Twojej kieszeni." },
+                    { "nav_home", "Strona główna" },
                     { "nav_prompts", "Projekty i prompty" },
                     { "nav_sessions", "Sesje" },
                     { "nav_accounts", "Konta" },
@@ -2760,11 +2896,11 @@ sealed class Desktop
                     { "stick_fw_btn", "Zaktualizuj StickS3" },
                     { "stick_fw_flashing", "Wgrywam firmware StickS3 przez USB..." },
                     { "stick_fw_flashed_fmt", "Zaktualizowano StickS3 do wersji v{0}." },
-                    { "after_update_title", "Zaktualizowano do AgentDeck (v1 Preview)" },
+                    { "after_update_title", "Zaktualizowano do AgentDeck (v1.1)" },
                     { "after_update_sub", "Wszystko jest gotowe do pracy na Twoim PC." },
-                    { "after_update_notes", "• Dopracowany układ przycisków, marginesy, zaokrąglone listy i płynne animacje\n• Wgrywanie najnowszego firmware StickS3 (v1.0.0) przez USB jednym kliknięciem\n• Naprawione działanie Antigravity w tle, usuwanie sesji oraz Auto-Updater" },
-                    { "after_update_usb_title", "Firmware StickS3 (v1.0.0)" },
-                    { "after_update_usb_hint", "Podłącz M5Stick S3 kablem USB-C, aby wgrać najnowszą wersję AgentDeck na Sticka." },
+                    { "after_update_notes", "• Nowa Strona główna: szybkie wysyłanie promptów i zarządzanie IDE jednym kliknięciem\n• Pełne raporty z Antigravity i Codex (czeka na wszystkie subagenty bez ucinania)\n• StickS3 pokazuje tylko zainstalowane IDE + usuwanie sesji i wgrywanie firmware przez USB" },
+                    { "after_update_usb_title", "Firmware StickS3 (v1.1.0)" },
+                    { "after_update_usb_hint", "Podłącz M5Stick S3 kablem USB-C, aby wgrać najnowszą wersję AgentDeck v1.1 na Sticka." },
                     { "after_update_btn", "Przejdź do AgentDeck" },
                     { "btn_delete_session", "Usuń sesję" },
                     { "btn_clear_sessions", "Wyczyść ukończone" },
@@ -2772,7 +2908,36 @@ sealed class Desktop
                     { "clearing_sessions", "Czyszczę ukończone sesje..." },
                     { "session_deleted", "Usunięto sesję." },
                     { "sessions_cleared_fmt", "Usunięto ukończone sesje: {0}." },
-                    { "btn_flash_stick", "Wgraj firmware (USB)" }
+                    { "btn_flash_stick", "Wgraj firmware (USB)" },
+                    { "sub_home", "Wysyłaj prompty, zarządzaj Antigravity CLI i ChatGPT Codex oraz połącz StickS3" },
+                    { "home_quick_title", "Szybki prompt" },
+                    { "home_quick_desc", "Uruchom prompt bezpośrednio z Windows na wybranym zainstalowanym IDE i podglądaj postęp w Sesjach." },
+                    { "home_ide_label", "AI IDE" },
+                    { "home_mode_label", "Tryb" },
+                    { "home_mode_read", "Tylko odczyt (Analiza)" },
+                    { "home_mode_write", "Zapis (Edycja plików)" },
+                    { "home_project_label", "Projekt" },
+                    { "home_prompt_label", "Treść promptu" },
+                    { "btn_send_prompt", "Wyślij prompt" },
+                    { "btn_open_sessions", "Otwórz sesje" },
+                    { "home_ides_title", "Zainstalowane AI IDE" },
+                    { "home_ides_desc", "Na StickS3 wyświetlają się tylko zainstalowane IDE. Brakujące zainstalujesz jednym kliknięciem." },
+                    { "ide_installed", "Zainstalowano" },
+                    { "ide_missing", "Brak" },
+                    { "ide_not_detected_hint", "Kliknij Zainstaluj, aby zainstalować automatycznie." },
+                    { "btn_install", "Zainstaluj" },
+                    { "checking_ides", "Sprawdzam zainstalowane AI IDE..." },
+                    { "installing_agy", "Instaluję Antigravity CLI..." },
+                    { "installing_codex", "Instaluję ChatGPT Codex CLI..." },
+                    { "ide_installed_fmt", "Zainstalowano {0}." },
+                    { "home_stick_title", "Połączenie ze StickS3" },
+                    { "home_stick_usb_ok", "StickS3 podłączony przez USB-C. Możesz go sparować lub wgrać firmware." },
+                    { "home_stick_usb_wait", "Podłącz M5Stick S3 kablem USB-C, aby sparować lub wgrać najnowszy firmware." },
+                    { "sending_home_prompt", "Uruchamiam sesję promptu..." },
+                    { "prompt_sent", "Prompt uruchomiony! Podgląd na żywo w Sesjach." },
+                    { "err_no_ide_installed", "Najpierw zainstaluj Antigravity CLI lub ChatGPT Codex." },
+                    { "err_select_project", "Wybierz projekt z listy." },
+                    { "err_enter_prompt", "Wpisz treść promptu." }
                 }
             }
         };

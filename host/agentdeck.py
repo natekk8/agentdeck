@@ -35,13 +35,15 @@ from providers import (
     codex_run,
     executable,
     friendly_error,
+    ide_install,
+    ide_status,
     model_choices,
     model_name,
     named_models,
 )
 from reporter import collect_diagnostics, resolve_dsn, send_glitchtip_report
 from updater import Updater, check_for_update
-from version import APP_DISPLAY_VERSION, APP_VERSION
+from version import APP_DISPLAY_VERSION, APP_VERSION, EXPECTED_STICK_FIRMWARE
 
 ROOT = Path(__file__).resolve().parent.parent
 FRAME = b"AD1 "
@@ -703,6 +705,71 @@ class Deck:
 
     def desktop(self, operation, request):
         lang = self.language()
+        if operation == "ide_status":
+            if self.args.demo:
+                return {"ides": {
+                    "agy": {"id": "agy", "name": "Antigravity CLI", "installed": True, "path": "demo", "version": "demo"},
+                    "codex": {"id": "codex", "name": "ChatGPT Codex", "installed": True, "path": "demo", "version": "demo"},
+                }}
+            return {"ides": ide_status(force=bool(request.get("force")))}
+        if operation == "ide_install":
+            provider = str(request.get("provider") or "").strip()
+            ides = ide_install(provider, lang=lang)
+            with self.lock:
+                self.catalogs.pop(provider, None)
+            if provider in PROVIDERS:
+                self.refresh(provider, force=True)
+            return {"ides": ides}
+        if operation == "start_prompt":
+            provider = str(request.get("provider") or "").strip()
+            if provider not in PROVIDERS:
+                raise ValueError(tr(lang, "invalid_request"))
+            text = str(request.get("text") or "").strip()
+            if not text:
+                raise ValueError("Enter a prompt to run." if lang != "pl" else "Wpisz treść promptu.")
+            project_id = str(request.get("project") or "").strip()
+            mode = str(request.get("mode") or "read").strip()
+            if mode not in ("read", "write", "plan_execute"):
+                mode = "read"
+            label = str(request.get("label") or "").strip() or text.splitlines()[0][:48]
+            with self.lock:
+                project = self.projects.get(project_id)
+                if not project:
+                    raise ValueError(tr(lang, "select_existing_folder"))
+                models = (self.catalogs.get(provider) or {}).get("models") or []
+                model_id = str(request.get("model") or "").strip()
+                model_label = model_id
+                if not model_id and models:
+                    model_id = models[0]["id"]
+                    model_label = models[0]["label"]
+                elif not model_id:
+                    model_id = "demo" if self.args.demo else ("gemini-3.8-flash-medium" if provider == "agy" else "gpt-5.3-codex")
+                    model_label = model_id
+                job_id = secrets.token_hex(12)
+                self.job_prompts[job_id] = text
+                job = {
+                    "id": job_id,
+                    "source": "windows",
+                    "label": label,
+                    "provider": provider,
+                    "project_label": project["label"],
+                    "project": str(project["path"]),
+                    "model": model_id,
+                    "model_label": model_label,
+                    "effort": str(request.get("effort") or ""),
+                    "prompt": "quick",
+                    "state": "queued",
+                    "detail": tr(lang, "starting"),
+                    "preview": "",
+                    "mode": mode,
+                    "started": 0,
+                    "finished": 0,
+                    "conversation": "",
+                }
+                self.jobs[job_id] = job
+                self.save()
+            self.tick()
+            return {"job": self.visible_job(job)}
         if operation == "update_check":
             return check_for_update()
         if operation == "update_download":
@@ -863,7 +930,7 @@ class Deck:
                 output = self.result_path(job["id"])
                 try:
                     with output.open(encoding="utf-8") as file:
-                        answer = file.read(100_001)
+                        answer = file.read(500_001)
                 except FileNotFoundError:
                     output, answer = None, ""
                 conversation = job.get("conversation") or ""
@@ -871,7 +938,7 @@ class Deck:
                             bool(CONVERSATION_ID.fullmatch(conversation)))
                 title, native_project = agy_conversation(conversation) if can_open else ("", "")
                 return self.visible_job(job) | {
-                    "answer": answer[:100_000], "answer_truncated": len(answer) > 100_000,
+                    "answer": answer[:500_000], "answer_truncated": len(answer) > 500_000,
                     "output_path": str(output) if output else "", "project": job["project"],
                     "conversation": conversation, "conversation_title": title,
                     "cli_project": native_project == "default-cli-project",
@@ -1117,12 +1184,20 @@ class Deck:
 
     def overview(self):
         jobs = sorted(reversed(list(self.jobs.values())), key=lambda j: j["state"] not in ACTIVE)
+        if self.args.demo:
+            has_agy, has_codex = True, True
+        else:
+            ides = ide_status()
+            has_agy = bool((ides.get("agy") or {}).get("installed"))
+            has_codex = bool((ides.get("codex") or {}).get("installed"))
         return {
             "active": sum(j["state"] in ACTIVE for j in jobs), "demo": self.args.demo,
             "armed": self.power_armed, "power_sent": self.power_sent,
             "power_allowed": self.args.allow_shutdown or self.args.demo,
             "cooldown": max(0, int(self.deadline - time.monotonic() + .999)) if self.deadline else None,
             "lang": self.language(),
+            "has_agy": has_agy,
+            "has_codex": has_codex,
         }, jobs
 
     def request(self, data):

@@ -1,4 +1,4 @@
-# AgentDeck (v1 Preview)
+# AgentDeck v1.1
 
 Zdalne sterowanie AI IDE w Twojej kieszeni.
 
@@ -6,8 +6,9 @@ AgentDeck łączy komputer z Windows z urządzeniem M5Stick S3, dzięki czemu mo
 
 ## Co znajdziesz w aplikacji
 
+- **Strona główna i zarządzanie AI IDE** z szybkim wysyłaniem promptów z Windows, automatycznym wykrywaniem Antigravity CLI i ChatGPT Codex, instalacją brakujących narzędzi jednym kliknięciem oraz dynamicznym ukrywaniem niezainstalowanych IDE na StickS3.
 - **Projekty i prompty** z automatycznym wykrywaniem workspace z Antigravity i Codex CLI oraz gotowymi szablonami promptów.
-- **Sesje na żywo** pozwalające podejrzeć odpowiedź agenta, status wykonania, pytania wymagające wyboru i pełny log po powrocie do komputera.
+- **Sesje na żywo** z pełnymi raportami (również z subagentów), podglądem pytań w trakcie sesji oraz usuwaniem pojedynczych lub ukończonych sesji.
 - **Konta i subskrypcje** z podglądem aktywnego planu i limitów Antigravity oraz szybkim przełączaniem kont Codex CLI.
 - **Urządzenia i Wi-Fi** z parowaniem StickS3 przez USB-C jednym kliknięciem, podglądem baterii w procentach i synchronizacją ustawień między Windows a Stickiem.
 - **Remote Control i przekaźnik** do bezpiecznego sterowania IDE oraz pracy poza domową siecią Wi-Fi.
@@ -16,7 +17,7 @@ AgentDeck łączy komputer z Windows z urządzeniem M5Stick S3, dzięki czemu mo
 
 ## Szybki start na Windows
 
-1. Pobierz i uruchom instalator `AgentDeck-Setup-1.0.0.exe` z zakładki Releases.
+1. Pobierz i uruchom instalator `AgentDeck-Setup-1.1.0.exe` z zakładki Releases.
 2. Uruchom **AgentDeck**. Przy pierwszym starcie kreator pomoże Ci wybrać język (polski lub angielski), włączyć cichy autostart w tle (bez okien CMD, potrzebny m.in. do Wake on LAN) oraz sparować StickS3.
 3. Podłącz M5Stick S3 kablem USB-C, jeśli aplikacja poprosi o parowanie lub wgranie nowej wersji firmware.
 

@@ -104,6 +104,7 @@ int keyboard = 0;
 const char* Keys[] = {"abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
                       "0123456789", " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"};
 int elapsed = 0, cooldown = -1, active = 0;
+bool hasAgy = true, hasCodex = true;
 int batteryPct = -1;
 bool batteryCharging = false;
 uint32_t batteryAt = 0;
@@ -523,6 +524,8 @@ void returnToWifi() {
 
 void applyStatus(JsonObjectConst doc) {
     active = doc["active"] | active;
+    if (!doc["has_agy"].isNull()) hasAgy = doc["has_agy"].as<bool>();
+    if (!doc["has_codex"].isNull()) hasCodex = doc["has_codex"].as<bool>();
     powered = doc["armed"] | powered;
     powerAllowed = doc["power_allowed"] | powerAllowed;
     powerSent = doc["power_sent"] | powerSent;
@@ -719,7 +722,7 @@ const char* title();
 void deviceState(JsonObject result) {
     const bool online = WiFi.status() == WL_CONNECTED;
     result["device"] = decknet::deviceId();
-    result["firmware"] = "1.0.0";
+    result["firmware"] = "1.1.0";
     result["lang"] = langPl ? "pl" : "en";
     result["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
     result["charging"] = batteryCharging;
@@ -871,7 +874,7 @@ void serialInput(const String& line) {
         const esp_partition_t* running = esp_ota_get_running_partition();
         info["ok"] = true;
         info["id"] = ident;
-        info["firmware"] = "AgentDeck 1.0.0";
+        info["firmware"] = "AgentDeck 1.1.0";
         info["lang"] = langPl ? "pl" : "en";
         info["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
         info["charging"] = batteryCharging;
@@ -1103,10 +1106,11 @@ void draw() {
     text(view.page == Page::Job ? tr("B/A scroll out", "B/A przewiń wynik") : tr("B/A scroll", "B/A przewiń"), 8, 116, Muted);
     text(tr("A OK    B back", "A OK    B wróć"), 148, 116, Text);
     if (view.page == Page::Home) {
-        row("Antigravity", 27, view.cursor == 0, "", Blue);
-        row("Codex", 46, view.cursor == 1, "", Mint);
-        row(active ? String(tr("Sessions", "Sesje")) + " (" + String(active) + ")" : tr("Sessions", "Sesje"), 65, view.cursor == 2);
-        row(tr("Settings", "Ustawienia"), 84, view.cursor == 3);
+        int idx = 0;
+        if (hasAgy) { row("Antigravity", 27 + idx * 19, view.cursor == idx, "", Blue); ++idx; }
+        if (hasCodex) { row("Codex", 27 + idx * 19, view.cursor == idx, "", Mint); ++idx; }
+        row(active ? String(tr("Sessions", "Sesje")) + " (" + String(active) + ")" : tr("Sessions", "Sesje"), 27 + idx * 19, view.cursor == idx); ++idx;
+        row(tr("Settings", "Ustawienia"), 27 + idx * 19, view.cursor == idx);
     } else if (listPage() || localList()) {
         const bool limits = view.page == Page::Limits;
         const int visible = limits ? 2 : 4;
@@ -1286,7 +1290,7 @@ int menuSize() {
     if (view.page == Page::Confirm || view.page == Page::Wifi) return 3;
     if (view.page == Page::Keys) return 3 + strlen(Keys[keyboard]);
     if (view.page == Page::Settings) return 5;
-    if (view.page == Page::Home) return 4;
+    if (view.page == Page::Home) return (hasAgy ? 1 : 0) + (hasCodex ? 1 : 0) + 2;
     if (view.page == Page::Stop || view.page == Page::Cooldown ||
         view.page == Page::Shutdown || view.page == Page::Language) return 2;
     return 1;
@@ -1327,15 +1331,18 @@ void startOrRetry(const char* op) {
 
 void select() {
     if (view.page == Page::Home) {
-        if (view.cursor == 0 || view.cursor == 1) {
-            provider = view.cursor == 0 ? "agy" : "codex";
+        int agyIdx = hasAgy ? 0 : -1;
+        int codexIdx = hasCodex ? (hasAgy ? 1 : 0) : -1;
+        int sessionsIdx = (hasAgy ? 1 : 0) + (hasCodex ? 1 : 0);
+        if (view.cursor == agyIdx || view.cursor == codexIdx) {
+            provider = view.cursor == agyIdx ? "agy" : "codex";
             if (!lastAnswer || millis() - lastAnswer > 1600) {
                 wakeRequested = true;
                 wakeAt = 0;
                 pendingAt = millis();
             }
             open(Page::Models);
-        } else open(view.cursor == 2 ? Page::Sessions : Page::Settings);
+        } else open(view.cursor == sessionsIdx ? Page::Sessions : Page::Settings);
     } else if (listPage()) {
         if (view.cursor >= int(view.rows.size())) return;
         const Row item = view.rows[view.cursor];

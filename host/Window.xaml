@@ -1,7 +1,7 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="AgentDeck (v1 Preview) | Remote AI IDE control in your pocket." Width="1160" Height="730" MinWidth="960" MinHeight="620"
+        Title="AgentDeck (v1.1) | Remote AI IDE control in your pocket." Width="1160" Height="730" MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Background="#080B12" Foreground="#F4F7FB"
         FontFamily="Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI" FontSize="13.5" UseLayoutRounding="True">
@@ -520,7 +520,7 @@
               <WrapPanel VerticalAlignment="Center">
                 <TextBlock Text="AgentDeck" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,7,2"/>
                 <Border Background="#18223A" BorderBrush="#2C3E66" BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center" Margin="0,0,0,2">
-                  <TextBlock Name="VersionBadge" Text="v1 Preview" FontSize="10" FontWeight="SemiBold" Foreground="#93B4FF"/>
+                  <TextBlock Name="VersionBadge" Text="v1.1" FontSize="10" FontWeight="SemiBold" Foreground="#93B4FF"/>
                 </Border>
               </WrapPanel>
               <TextBlock Name="BrandTagline" Text="Remote AI IDE control in your pocket." FontSize="11"
@@ -550,6 +550,12 @@
           <!-- Scrollable Navigation -->
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
+            <Button Name="NavHome" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M3,11 L12,3 L21,11 V20 H15 V14 H9 V20 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavHomeText" Text="Home" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
             <Button Name="NavPrompts" Style="{StaticResource Nav}">
               <StackPanel Orientation="Horizontal">
                 <Path Data="M3,5 H9 L11,7 H21 V19 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
@@ -686,8 +692,140 @@
 
           <!-- Page Body -->
           <Grid Name="Body" Grid.Row="2">
+            <!-- 0. Home Dashboard -->
+            <Grid Name="Home">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="380"/>
+              </Grid.ColumnDefinitions>
+
+              <!-- Quick Prompt Card -->
+              <Border Style="{StaticResource Card}">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <StackPanel Margin="0,0,0,14">
+                    <TextBlock Name="HomeQuickTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Quick Prompt"/>
+                    <TextBlock Name="HomeQuickDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0"
+                               Text="Send a prompt directly from Windows using your installed AI IDE and watch progress live in Sessions."/>
+                  </StackPanel>
+
+                  <Grid Grid.Row="1" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="10"/>
+                      <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Name="HomeIdeLabel" Style="{StaticResource FieldLabel}" Text="AI IDE"/>
+                      <ComboBox Name="HomeProvider"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                      <TextBlock Name="HomeModeLabel" Style="{StaticResource FieldLabel}" Text="Mode"/>
+                      <ComboBox Name="HomeMode">
+                        <ComboBoxItem Name="HomeModeRead" Content="Read-only (Analysis)" Tag="read"/>
+                        <ComboBoxItem Name="HomeModeWrite" Content="Write (Edit files)" Tag="write"/>
+                      </ComboBox>
+                    </StackPanel>
+                  </Grid>
+
+                  <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                    <TextBlock Name="HomeProjectLabel" Style="{StaticResource FieldLabel}" Text="Project"/>
+                    <ComboBox Name="HomeProject"/>
+                  </StackPanel>
+
+                  <DockPanel Grid.Row="3">
+                    <TextBlock Name="HomePromptLabel" DockPanel.Dock="Top" Style="{StaticResource FieldLabel}" Text="Prompt"/>
+                    <TextBox Name="HomePromptText" MaxLength="32000" TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
+                  </DockPanel>
+
+                  <WrapPanel Grid.Row="4" Margin="0,14,0,0">
+                    <Button Name="HomeSendBtn" Style="{StaticResource PrimaryBtn}" Content="Send Prompt"/>
+                    <Button Name="HomeOpenSessionsBtn" Content="Open Sessions"/>
+                  </WrapPanel>
+                </Grid>
+              </Border>
+
+              <!-- Right Column: AI IDEs Manager + StickS3 Quick Connect -->
+              <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="16"/>
+                  <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- AI IDEs Card -->
+                <Border Style="{StaticResource Card}">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                      <Button Name="RefreshIdeBtn" DockPanel.Dock="Right" Style="{StaticResource PillBtn}" Content="Refresh" Margin="0"/>
+                      <TextBlock Name="HomeIdesTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Installed AI IDEs"/>
+                    </DockPanel>
+                    <TextBlock Name="HomeIdesDesc" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Only installed IDEs are shown on your StickS3. Install missing CLIs in one click."/>
+
+                    <!-- Antigravity CLI Row -->
+                    <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                      <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                          <Border Name="AgyIdeBadge" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
+                            <TextBlock Name="AgyIdeStatus" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
+                          </Border>
+                          <Button Name="InstallAgyBtn" Style="{StaticResource PrimaryBtn}" Padding="11,5" MinHeight="28" FontSize="11.5" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Text="Antigravity CLI" FontWeight="SemiBold" FontSize="13.5"/>
+                          <TextBlock Name="AgyIdeDetail" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" Text="Detecting..."/>
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+
+                    <!-- ChatGPT Codex Row -->
+                    <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="12" Padding="12">
+                      <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                          <Border Name="CodexIdeBadge" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
+                            <TextBlock Name="CodexIdeStatus" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
+                          </Border>
+                          <Button Name="InstallCodexBtn" Style="{StaticResource PrimaryBtn}" Padding="11,5" MinHeight="28" FontSize="11.5" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Text="ChatGPT Codex" FontWeight="SemiBold" FontSize="13.5"/>
+                          <TextBlock Name="CodexIdeDetail" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" Text="Detecting..."/>
+                        </StackPanel>
+                      </DockPanel>
+                    </Border>
+                  </StackPanel>
+                </Border>
+
+                <!-- StickS3 Quick Connect Card -->
+                <Border Grid.Row="2" Style="{StaticResource Card}">
+                  <StackPanel>
+                    <TextBlock Name="HomeStickTitle" Style="{StaticResource SectionTitle}" Text="StickS3 Connection"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                      <Ellipse Name="HomeStickDot" Width="9" Height="9" Fill="#34D399" Margin="0,0,8,0"/>
+                      <TextBlock Name="HomeStickStatus" FontSize="13.5" FontWeight="SemiBold" Text="Checking StickS3..."/>
+                    </StackPanel>
+                    <TextBlock Name="HomeStickDetail" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14"
+                               Text="Connect M5Stick S3 via USB-C to pair or flash the latest firmware."/>
+                    <WrapPanel>
+                      <Button Name="HomePairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair via USB"/>
+                      <Button Name="HomeFlashUsbBtn" Content="Flash Firmware (USB)"/>
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Grid>
+
             <!-- 1. Projects & Prompts -->
-            <Grid Name="Prompts">
+            <Grid Name="Prompts" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="346"/>
                 <ColumnDefinition Width="18"/>
@@ -1293,7 +1431,7 @@
                   </Viewbox>
                 </Border>
                 <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                  <TextBlock Text="AgentDeck (v1 Preview)" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                  <TextBlock Text="AgentDeck (v1.1)" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
                   <TextBlock Name="OnbTagline" Text="Remote AI IDE control in your pocket." FontSize="12" Foreground="#81A6F8" Margin="0,2,0,0"/>
                 </StackPanel>
               </StackPanel>
@@ -1380,7 +1518,7 @@
           <StackPanel>
             <DockPanel Margin="0,0,0,14">
               <Border DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Center">
-                <TextBlock Name="AfterUpdateBadge" Text="v1 Preview" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Mint}"/>
+                <TextBlock Name="AfterUpdateBadge" Text="v1.1" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Mint}"/>
               </Border>
               <StackPanel Orientation="Horizontal">
                 <Border Width="44" Height="44" CornerRadius="12" Background="#141C30" BorderBrush="#283554" BorderThickness="1" Padding="4">

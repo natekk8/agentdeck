@@ -950,26 +950,84 @@ def codex_run(cwd, model, prompt, mode, stop, update, effort="", lang=DEFAULT_LA
             **({"effort": effort} if effort else {}),
         })["turn"]["id"]
         interrupted = False
-        output = []
+        item_order = []
+        item_buffers = {}
+        fallback_chunks = []
         preview = ""
         cancel_deadline = None
+
+        def _extract_item_text(item):
+            if not isinstance(item, dict):
+                return ""
+            direct = item.get("text")
+            if isinstance(direct, str) and direct.strip():
+                return direct
+            parts = []
+            for block in item.get("content") or []:
+                if isinstance(block, dict):
+                    txt = block.get("text") or block.get("content") or ""
+                    if isinstance(txt, str) and txt:
+                        parts.append(txt)
+                elif isinstance(block, str) and block:
+                    parts.append(block)
+            return "".join(parts)
+
+        def _collect_output():
+            blocks = []
+            for key in item_order:
+                chunk = "".join(item_buffers.get(key) or []).strip()
+                if chunk:
+                    blocks.append(chunk)
+            if fallback_chunks:
+                tail = "".join(fallback_chunks).strip()
+                if tail and (not blocks or tail not in blocks[-1]):
+                    blocks.append(tail)
+            return "\n\n".join(blocks).strip()
+
         while True:
             event = rpc.deferred.pop(0) if rpc.deferred else rpc.receive()
             data = event.get("params") or {}
             kind = event.get("method")
             if kind == "turn/completed" and data.get("turn", {}).get("id") == turn:
                 result = data["turn"]
+                full_out = _collect_output()
                 if result.get("status") == "completed":
-                    return "finished", "".join(output).strip() or tr(lang, "codex_finished")
+                    return "finished", full_out or tr(lang, "codex_finished")
                 if result.get("status") == "interrupted":
-                    return "cancelled", "".join(output).strip() or tr(lang, "codex_interrupted")
+                    return "cancelled", full_out or tr(lang, "codex_interrupted")
                 error = result.get("error") or {}
                 raise ProviderError(error.get("message") or tr(lang, "codex_turn_failed"))
             if kind == "item/agentMessage/delta":
                 delta = data.get("delta", "")
-                output.append(delta)
-                preview = (preview + delta)[-180:]
-                update(tr(lang, "codex_reply"), preview=preview)
+                if delta:
+                    item_id = str(data.get("itemId") or data.get("item_id") or "")
+                    if item_id:
+                        if item_id not in item_buffers:
+                            item_order.append(item_id)
+                            item_buffers[item_id] = []
+                        item_buffers[item_id].append(delta)
+                    else:
+                        fallback_chunks.append(delta)
+                    preview = (preview + delta)[-180:]
+                    update(tr(lang, "codex_reply"), preview=preview)
+            if kind == "item/completed":
+                item = data.get("item") or {}
+                if item.get("type") == "agentMessage":
+                    item_id = str(item.get("id") or "")
+                    completed_text = _extract_item_text(item)
+                    if completed_text:
+                        if item_id:
+                            if item_id not in item_buffers:
+                                item_order.append(item_id)
+                                item_buffers[item_id] = [completed_text]
+                            else:
+                                existing = "".join(item_buffers[item_id])
+                                if len(completed_text) > len(existing):
+                                    item_buffers[item_id] = [completed_text]
+                        else:
+                            fallback_chunks.append("\n\n" + completed_text)
+                        preview = completed_text[-180:]
+                        update(tr(lang, "codex_reply"), preview=preview)
             if kind == "item/started":
                 item_type = data.get("item", {}).get("type")
                 labels = {
@@ -990,117 +1048,199 @@ def codex_run(cwd, model, prompt, mode, stop, update, effort="", lang=DEFAULT_LA
 
 
 def agy_run(cwd, model, prompt, mode, stop, update, native_project="", effort="", lang=DEFAULT_LANG, ask_user=None):
-    # Headless stream-json cannot interactively prompt for tool permissions;
-    # --mode auto + --dangerously-skip-permissions + --sandbox prevents silent auto-denials
-    # while keeping sandbox terminal restrictions active.
-    args = [executable("agy", lang=lang), "--model", model, "--mode", "auto",
-            "--dangerously-skip-permissions", "--sandbox",
-            "--disable-slash-commands", "--input-format", "stream-json", "--output-format", "stream-json"]
-    if effort and str(effort).lower() in ("low", "medium", "high", "xhigh", "max"):
-        args.extend(["--effort", str(effort).lower()])
-    if native_project:
-        args.append("--project=" + native_project)
-    with spawn(args, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-               stderr=subprocess.PIPE) as proc:
-        cancellation = threading.Event()
+    # Use --print <prompt> --output-format stream-json so agy waits for ALL
+    # background subagents and multi-step turns before emitting the final result.
+    # --mode auto + --dangerously-skip-permissions + --sandbox prevents silent
+    # headless tool denials while keeping sandbox terminal restrictions active.
+    exe = executable("agy", lang=lang)
+    transcript = []
+    conversation_id = ""
+    current_prompt = prompt
 
-        def cancel():
-            while proc.poll() is None:
-                if stop.wait(0.2) and proc.poll() is None:
-                    try:
-                        kill_tree(proc)
-                        cancellation.set()
-                    except OSError:
-                        pass
-                    return
-
-        errors = []
-        cancel_worker = threading.Thread(target=cancel, daemon=True)
-        cancel_worker.start()
-        stderr_worker = threading.Thread(target=lambda: errors.extend(proc.stderr), daemon=True)
-        stderr_worker.start()
-        try:
-            message = {"event": "user", "message": {"content": prompt}}
-            proc.stdin.write(json.dumps(message, ensure_ascii=True) + "\n")
-            proc.stdin.flush()
-            if not ask_user:
-                proc.stdin.close()
-        except (BrokenPipeError, OSError):
-            pass
-        result = None
-        transcript = []
-        streamed = []
-        for line in proc.stdout:
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            kind = event.get("event")
-            if kind == "init":
-                update(tr(lang, "agy_started"), conversation=event.get("conversation_id", ""))
-            if kind == "step_update":
-                item = event.get("step_update") or {}
-                step = item.get("step_type") or ""
-                if step != "user_input":
-                    delta = str(item.get("text_delta") or "")
-                    if step == "agent_response" and delta:
-                        streamed.append(delta)
-                    tool_name = str(item.get("tool_name") or "")
-                    label = tr(lang, "agy_reply") if step == "agent_response" else (
-                        f"{tr(lang, 'agy_working')} ({tool_name})" if tool_name else tr(lang, "agy_working")
-                    )
-                    preview_src = delta or tool_name
-                    update(label, preview=preview_src[-180:])
-            if kind == "result":
-                result = event.get("result") or {}
-                if result.get("conversation_id"):
-                    update(tr(lang, "agy_finishing"), conversation=result["conversation_id"])
-                response_text = str(result.get("response") or "")
-                if not response_text and streamed:
-                    response_text = "".join(streamed).strip()
-                streamed.clear()
-                if response_text:
-                    transcript.append(response_text)
-                if result.get("status") == "SUCCESS" and ask_user and not stop.is_set():
-                    q = extract_choice_question(response_text, lang=lang)
-                    if q:
-                        q["options"].append({
-                            "label": tr(lang, "finish_session"),
-                            "description": "",
-                            "value": "__finish__",
-                        })
-                        chosen = ask_user(q)
-                        if chosen and chosen.get("value") not in (None, "__finish__") and not stop.is_set():
-                            try:
-                                follow = {"event": "user", "message": {"content": str(chosen["value"])}}
-                                proc.stdin.write(json.dumps(follow, ensure_ascii=True) + "\n")
-                                proc.stdin.flush()
-                                result = None
-                                continue
-                            except (BrokenPipeError, OSError):
-                                pass
-                try:
-                    proc.stdin.close()
-                except OSError:
-                    pass
-        try:
-            proc.stdin.close()
-        except OSError:
-            pass
-        code = proc.wait()
-        cancel_worker.join(timeout=6)
-        stderr_worker.join(timeout=1)
-        if cancellation.is_set():
+    for _turn in range(6):
+        if stop.is_set():
             return "cancelled", tr(lang, "agy_cancelled")
-        if result and result.get("status") == "SUCCESS" and code == 0:
-            full_text = "\n\n".join(transcript).strip() or str(result.get("response") or "").strip() or "".join(streamed).strip()
+        args = [exe, "--print", current_prompt, "--model", model, "--mode", "auto",
+                "--dangerously-skip-permissions", "--sandbox",
+                "--disable-slash-commands", "--output-format", "stream-json"]
+        if conversation_id:
+            args.extend(["--conversation", conversation_id])
+        if effort and str(effort).lower() in ("low", "medium", "high", "xhigh", "max"):
+            args.extend(["--effort", str(effort).lower()])
+        if native_project:
+            args.append("--project=" + native_project)
+
+        with spawn(args, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                   stderr=subprocess.PIPE) as proc:
+            cancellation = threading.Event()
+
+            def cancel():
+                while proc.poll() is None:
+                    if stop.wait(0.2) and proc.poll() is None:
+                        try:
+                            kill_tree(proc)
+                            cancellation.set()
+                        except OSError:
+                            pass
+                        return
+
+            errors = []
+            cancel_worker = threading.Thread(target=cancel, daemon=True)
+            cancel_worker.start()
+            stderr_worker = threading.Thread(target=lambda: errors.extend(proc.stderr), daemon=True)
+            stderr_worker.start()
+
+            result = None
+            streamed_by_step = {}
+            step_order = []
+            for line in proc.stdout:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                kind = event.get("event")
+                if kind == "init":
+                    cid = event.get("conversation_id", "")
+                    if cid:
+                        conversation_id = cid
+                    update(tr(lang, "agy_started"), conversation=conversation_id)
+                elif kind == "step_update":
+                    item = event.get("step_update") or {}
+                    step = item.get("step_type") or ""
+                    if step != "user_input":
+                        delta = str(item.get("text_delta") or "")
+                        if step == "agent_response" and delta:
+                            sidx = item.get("step_index", -1)
+                            if sidx not in streamed_by_step:
+                                step_order.append(sidx)
+                                streamed_by_step[sidx] = []
+                            streamed_by_step[sidx].append(delta)
+                        tool_name = str(item.get("tool_name") or "")
+                        label = tr(lang, "agy_reply") if step == "agent_response" else (
+                            f"{tr(lang, 'agy_working')} ({tool_name})" if tool_name else tr(lang, "agy_working")
+                        )
+                        preview_src = delta or tool_name
+                        if preview_src:
+                            update(label, preview=preview_src[-180:])
+                        else:
+                            update(label)
+                elif kind == "result":
+                    result = event.get("result") or {}
+                    if result.get("conversation_id"):
+                        conversation_id = result["conversation_id"]
+                        update(tr(lang, "agy_finishing"), conversation=conversation_id)
+
+            code = proc.wait()
+            cancel_worker.join(timeout=6)
+            stderr_worker.join(timeout=1)
+
+            if cancellation.is_set():
+                return "cancelled", tr(lang, "agy_cancelled")
+            if result and result.get("status") == "ERROR":
+                errors.append(str(result.get("error") or result.get("response") or ""))
+                raise ProviderError(" ".join(errors).strip()[-480:] or tr(lang, "agy_exit_code", code=code))
+            if not (result and result.get("status") == "SUCCESS" and code == 0):
+                raise ProviderError(" ".join(errors).strip()[-480:] or tr(lang, "agy_exit_code", code=code))
+
+            streamed_text = "\n\n".join(
+                "".join(streamed_by_step[s]).strip() for s in step_order if "".join(streamed_by_step[s]).strip()
+            ).strip()
+            response_text = str(result.get("response") or "").strip()
+            turn_text = response_text if len(response_text) >= len(streamed_text) else streamed_text
             denied = result.get("denied_actions") or []
-            if not full_text and denied:
+            if not turn_text and denied:
                 raise ProviderError(" ".join(errors).strip()[-480:] or "Antigravity headless tool permission denied.")
-            return "finished", full_text or tr(lang, "agy_finished")
-        if result and result.get("status") == "ERROR":
-            errors.append(str(result.get("error") or result.get("response") or ""))
-        raise ProviderError(" ".join(errors).strip()[-480:] or tr(lang, "agy_exit_code", code=code))
+            if turn_text:
+                transcript.append(turn_text)
+
+            if ask_user and conversation_id and turn_text and not stop.is_set():
+                q = extract_choice_question(turn_text, lang=lang)
+                if q:
+                    q["options"].append({
+                        "label": tr(lang, "finish_session"),
+                        "description": "",
+                        "value": "__finish__",
+                    })
+                    chosen = ask_user(q)
+                    if chosen and chosen.get("value") not in (None, "__finish__") and not stop.is_set():
+                        current_prompt = str(chosen["value"])
+                        continue
+            break
+
+    full_text = "\n\n".join(transcript).strip()
+    return "finished", full_text or tr(lang, "agy_finished")
+
+
+_IDE_STATUS_CACHE = {"at": 0.0, "data": None}
+_IDE_STATUS_LOCK = threading.Lock()
+
+
+def ide_status(force=False):
+    now = time.monotonic()
+    with _IDE_STATUS_LOCK:
+        if not force and _IDE_STATUS_CACHE["data"] is not None and now - _IDE_STATUS_CACHE["at"] < 20:
+            return dict(_IDE_STATUS_CACHE["data"])
+    if force:
+        windows_tools.clear()
+    result = {}
+    for key, label in (("agy", "Antigravity CLI"), ("codex", "ChatGPT Codex")):
+        path = ""
+        version = ""
+        installed = False
+        try:
+            path = executable(key)
+            installed = bool(path)
+        except ProviderError:
+            installed = False
+        if installed:
+            try:
+                proc = subprocess.run(
+                    [path, "--version"],
+                    capture_output=True, text=True, timeout=6,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                out = (proc.stdout or proc.stderr or "").strip().splitlines()
+                if out:
+                    version = out[0].strip()[:64]
+            except Exception:
+                version = ""
+        result[key] = {"id": key, "name": label, "installed": installed, "path": path, "version": version}
+    with _IDE_STATUS_LOCK:
+        _IDE_STATUS_CACHE["at"] = time.monotonic()
+        _IDE_STATUS_CACHE["data"] = dict(result)
+    return result
+
+
+def ide_install(provider, lang=DEFAULT_LANG):
+    if provider not in ("agy", "codex"):
+        raise ProviderError("Unsupported IDE provider.")
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if provider == "codex":
+        npm = shutil.which("npm.cmd") or shutil.which("npm")
+        if not npm:
+            raise ProviderError(
+                "Node.js / npm is required to install ChatGPT Codex CLI (nodejs.org)."
+                if lang != "pl" else
+                "Do instalacji ChatGPT Codex CLI wymagany jest Node.js / npm (nodejs.org)."
+            )
+        proc = subprocess.run(
+            [npm, "install", "-g", "@openai/codex"],
+            capture_output=True, text=True, timeout=180, creationflags=flags,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()[-240:]
+            raise ProviderError(detail or f"npm exited with code {proc.returncode}")
+    else:
+        ps = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        proc = subprocess.run(
+            [str(ps), "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+             "irm https://antigravity.google/install.ps1 | iex"],
+            capture_output=True, text=True, timeout=180, creationflags=flags,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()[-240:]
+            raise ProviderError(detail or f"Antigravity installer exited with code {proc.returncode}")
+    return ide_status(force=True)
 
 
 def friendly_error(error, lang=DEFAULT_LANG):
