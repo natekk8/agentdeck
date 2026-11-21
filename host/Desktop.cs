@@ -316,7 +316,6 @@ sealed class Desktop
         Action("SaveLanguageBtn", "applying_language", ApplySelectedLanguage);
         Button("BrowseProjectsRoot", BrowseProjectsRoot);
         Action("SaveProjectsRoot", "saving_settings", SaveProjectsRoot);
-        Action("SaveDsnBtn", "saving_settings", SaveGlitchtipDsn);
         Action("CheckUpdateBtn", "checking_updates", () => CheckForUpdateAsync(false));
         Button("OpenWizardBtn", () => ShowOnboarding(1));
         Button("OpenDataFolderBtn", () => OpenFolder(dataDir));
@@ -366,12 +365,10 @@ sealed class Desktop
                 lang = Str(settings, "language") == "pl" ? "pl" : "en";
                 C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
                 C<TextBox>("ProjectsRootInput").Text = Str(settings, "projects_root");
-                C<TextBox>("GlitchtipDsnInput").Text = Display(settings, "sentry_dsn", Str(settings, "glitchtip_dsn"));
-                UpdateGlitchtipBadge(Flag(settings, "sentry_configured") || Flag(settings, "glitchtip_configured"));
                 var onboarded = Flag(settings, "onboarded");
                 UpdateAutostartUi(Flag(settings, "autostart"), onboarded);
-                var ver = Str(settings, "version");
-                if (ver.Length > 0) C<TextBlock>("VersionBadge").Text = "v" + ver;
+                var dver = Str(settings, "display_version");
+                if (dver.Length > 0) C<TextBlock>("VersionBadge").Text = dver;
                 ApplyLanguage();
                 await ReadProjects("");
                 var relay = await Api("relay_get");
@@ -1114,9 +1111,11 @@ sealed class Desktop
         else
         {
             var reg = Flag(st, "registered");
+            var ideServe = Flag(st, "ide_serve");
             var inst = Str(st, "instance");
-            C<TextBlock>("AgyRcStatus").Text = err.Length > 0 ? L("unavailable") : running ? L("rc_active") : reg ? L("rc_registered") : L("rc_not_registered");
-            C<TextBlock>("AgyRcStatus").Foreground = running ? blue : err.Length > 0 ? coral : muted;
+            C<TextBlock>("AgyRcStatus").Text = err.Length > 0 ? L("unavailable") :
+                ideServe ? L("rc_active_ide") : running ? L("rc_active") : reg ? L("rc_registered") : L("rc_not_registered");
+            C<TextBlock>("AgyRcStatus").Foreground = (running || ideServe) ? blue : err.Length > 0 ? coral : muted;
             C<TextBlock>("AgyRcDetail").Text = err.Length > 0 ? err :
                 (inst.Length > 0 ? L("rc_instance") + ": " + inst : Display(st, "raw", L("rc_agy_idle")));
         }
@@ -1194,22 +1193,6 @@ sealed class Desktop
         var res = await Api("settings_save", "projects_root", raw);
         C<TextBox>("ProjectsRootInput").Text = Str(res, "projects_root");
         Note(L("settings_saved"));
-    }
-
-    void UpdateGlitchtipBadge(bool configured)
-    {
-        var badge = C<TextBlock>("GlitchtipStatusBadge");
-        badge.Text = configured ? L("configured") : L("not_configured");
-        badge.Foreground = configured ? mint : muted;
-    }
-
-    async Task SaveGlitchtipDsn()
-    {
-        var dsn = C<TextBox>("GlitchtipDsnInput").Text.Trim();
-        var res = await Api("settings_save", "sentry_dsn", dsn);
-        C<TextBox>("GlitchtipDsnInput").Text = Display(res, "sentry_dsn", Str(res, "glitchtip_dsn"));
-        UpdateGlitchtipBadge(Flag(res, "sentry_configured") || Flag(res, "glitchtip_configured"));
-        Note(L("dsn_saved"));
     }
 
     void SetReportKind(string kind)
@@ -1972,9 +1955,6 @@ sealed class Desktop
         C<TextBlock>("SettingsProjectsDesc").Text = L("settings_projects_desc");
         C<Button>("BrowseProjectsRoot").Content = L("btn_browse");
         C<Button>("SaveProjectsRoot").Content = L("btn_save_folder");
-        C<TextBlock>("SettingsGlitchtipTitle").Text = L("settings_gt_title");
-        C<TextBlock>("SettingsGlitchtipDesc").Text = L("settings_gt_desc");
-        C<Button>("SaveDsnBtn").Content = L("btn_save_dsn");
         C<TextBlock>("SettingsAboutTitle").Text = L("settings_about_title");
         C<TextBlock>("SettingsAboutDesc").Text = L("settings_about_desc");
         C<Button>("CheckUpdateBtn").Content = L("btn_check_updates");
@@ -2007,7 +1987,7 @@ sealed class Desktop
             {
                 "en", new Dictionary<string, string>
                 {
-                    { "window_title", "AgentDeck | Remote AI IDE control in your pocket." },
+                    { "window_title", "AgentDeck (v1 Preview) | Remote AI IDE control in your pocket." },
                     { "tagline", "Remote AI IDE control in your pocket." },
                     { "nav_prompts", "Projects & Prompts" },
                     { "nav_sessions", "Sessions" },
@@ -2110,7 +2090,7 @@ sealed class Desktop
                     { "btn_browse", "Browse..." },
                     { "btn_save_folder", "Save Folder" },
                     { "settings_about_title", "Setup Wizard & Folders" },
-                    { "settings_about_desc", "AgentDeck v0.6 · Launch the onboarding wizard anytime or open your local app and data directories." },
+                    { "settings_about_desc", "AgentDeck (v1 Preview) · Check GitHub Releases for updates, run the setup wizard, or open local folders." },
                     { "btn_open_wizard", "Run Setup Wizard" },
                     { "btn_open_data", "Open Data Folder" },
                     { "btn_open_app", "Open App Folder" },
@@ -2203,6 +2183,7 @@ sealed class Desktop
                     { "account_removed", "Profile removed from AgentDeck." },
                     { "rc_updated", "Remote Control status updated." },
                     { "rc_active", "Active" },
+                    { "rc_active_ide", "Active (IDE)" },
                     { "rc_inactive", "Inactive" },
                     { "rc_registered", "Registered" },
                     { "rc_not_registered", "Not registered" },
@@ -2300,7 +2281,7 @@ sealed class Desktop
             {
                 "pl", new Dictionary<string, string>
                 {
-                    { "window_title", "AgentDeck | Zdalne sterowanie AI IDE w Twojej kieszeni." },
+                    { "window_title", "AgentDeck (v1 Preview) | Zdalne sterowanie AI IDE w Twojej kieszeni." },
                     { "tagline", "Zdalne sterowanie AI IDE w Twojej kieszeni." },
                     { "nav_prompts", "Projekty i prompty" },
                     { "nav_sessions", "Sesje" },
@@ -2403,7 +2384,7 @@ sealed class Desktop
                     { "btn_browse", "Przeglądaj..." },
                     { "btn_save_folder", "Zapisz folder" },
                     { "settings_about_title", "Kreator konfiguracji i foldery" },
-                    { "settings_about_desc", "AgentDeck v0.6 · Otwórz kreator pierwszego uruchomienia lub przejdź do folderów aplikacji i danych." },
+                    { "settings_about_desc", "AgentDeck (v1 Preview) · Sprawdzaj aktualizacje na GitHub Releases, uruchom kreator lub otwórz lokalne foldery." },
                     { "btn_open_wizard", "Uruchom kreator startowy" },
                     { "btn_open_data", "Otwórz folder danych" },
                     { "btn_open_app", "Otwórz folder aplikacji" },
@@ -2496,6 +2477,7 @@ sealed class Desktop
                     { "account_removed", "Usunięto profil konta." },
                     { "rc_updated", "Zaktualizowano status Remote Control." },
                     { "rc_active", "Aktywny" },
+                    { "rc_active_ide", "Aktywny (IDE)" },
                     { "rc_inactive", "Nieaktywny" },
                     { "rc_registered", "Zarejestrowany" },
                     { "rc_not_registered", "Niezarejestrowany" },

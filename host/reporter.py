@@ -131,6 +131,13 @@ def send_glitchtip_report(
     if diagnostics:
         extra["diagnostics"] = sanitize_text(diagnostics[:4000])
 
+    body_lines = [f"[{kind_tag}] {title_clean}", "", desc_clean]
+    if contact_clean:
+        body_lines.extend(["", f"Contact: {contact_clean}"])
+    if diagnostics:
+        body_lines.extend(["", "--- Diagnostics ---", sanitize_text(diagnostics[:2500])])
+    full_message = "\n".join(body_lines)
+
     payload = {
         "event_id": event_id,
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -139,7 +146,8 @@ def send_glitchtip_report(
         "logger": f"agentdeck.{kind_clean}",
         "release": f"agentdeck@{APP_VERSION}",
         "environment": "production",
-        "message": {"formatted": f"[{kind_tag}] {title_clean}"},
+        "message": {"formatted": full_message},
+        "logentry": {"formatted": full_message},
         "tags": tags,
         "extra": extra,
     }

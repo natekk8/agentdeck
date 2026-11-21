@@ -567,13 +567,33 @@ def codex_login_launch(lang=DEFAULT_LANG):
     )
 
 
+def _agy_ide_serve_running(lang=DEFAULT_LANG):
+    if os.name != "nt":
+        return False
+    ps = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    try:
+        out = capture([
+            str(ps), "-NoProfile", "-NonInteractive", "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='agy.exe' OR Name='agy.EXE'\" | "
+            "Select-Object -ExpandProperty CommandLine"
+        ], timeout=5, lang=lang)
+        return any("remote-control" in line and "serve" in line for line in out.splitlines())
+    except (OSError, ProviderError):
+        return False
+
+
 def agy_remote_control(action="status", name="", lang=DEFAULT_LANG):
     if action not in {"status", "start", "stop"}:
         raise ProviderError(tr(lang, "rc_unknown_action"))
     agy_bin = executable("agy", lang=lang)
+    ide_serve = _agy_ide_serve_running(lang=lang)
+    if action == "start" and ide_serve and not name.strip():
+        action = "status"
     args = [agy_bin, "remote-control", action]
-    if action == "start" and name.strip():
-        args.extend(["--name", name.strip()[:48]])
+    if action == "start":
+        args.append("--session")
+        if name.strip():
+            args.extend(["--name", name.strip()[:48]])
     output = capture(args, timeout=15, lang=lang).strip()
     if action != "status":
         # Re-read authoritative status after start/stop
@@ -581,22 +601,28 @@ def agy_remote_control(action="status", name="", lang=DEFAULT_LANG):
             status_out = capture([agy_bin, "remote-control", "status"], timeout=10, lang=lang).strip()
         except ProviderError:
             status_out = output
+        ide_serve = _agy_ide_serve_running(lang=lang)
     else:
         status_out = output
     low = status_out.lower()
     not_registered = "not registered" in low
     registered = not not_registered
-    running = registered and not any(tok in low for tok in ("stopped", "not running", "inactive", "offline"))
+    daemon_running = registered and not any(tok in low for tok in ("stopped", "not running", "inactive", "offline"))
+    running = daemon_running or ide_serve
     instance = ""
     for line in status_out.splitlines():
         if line.lower().startswith("instance name:"):
             val = line.split(":", 1)[1].strip()
-            if not val.lower().startswith("not assigned"):
-                instance = val
+            if val.lower().startswith("not assigned"):
+                continue
+            if "(" in val:
+                val = val.split("(", 1)[0].strip()
+            instance = val
     return {
         "provider": "agy",
-        "registered": registered,
+        "registered": registered or ide_serve,
         "running": running,
+        "ide_serve": ide_serve,
         "instance": instance,
         "raw": status_out or output,
     }

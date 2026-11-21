@@ -26,6 +26,17 @@ def make_server(address, channels):
         def log_message(self, *_):
             pass
 
+        def do_GET(self):
+            if self.path in ("/", "/health"):
+                body = b'{"ok":true,"service":"agentdeck-relay"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.send_error(404)
+
         def do_POST(self):
             target = MAILBOX.fullmatch(self.path)
             try:

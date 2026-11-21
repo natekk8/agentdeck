@@ -41,7 +41,7 @@ from providers import (
 )
 from reporter import collect_diagnostics, resolve_dsn, send_glitchtip_report
 from updater import Updater, check_for_update
-from version import APP_VERSION
+from version import APP_DISPLAY_VERSION, APP_VERSION
 
 ROOT = Path(__file__).resolve().parent.parent
 FRAME = b"AD1 "
@@ -696,6 +696,7 @@ class Deck:
                 return dict(self.settings) | {
                     "autostart": autostart_status(),
                     "version": APP_VERSION,
+                    "display_version": APP_DISPLAY_VERSION,
                     "sentry_configured": configured,
                     "glitchtip_configured": configured,
                 }
@@ -727,6 +728,7 @@ class Deck:
                 return dict(self.settings) | {
                     "autostart": autostart_status(),
                     "version": APP_VERSION,
+                    "display_version": APP_DISPLAY_VERSION,
                     "sentry_configured": configured,
                     "glitchtip_configured": configured,
                 }

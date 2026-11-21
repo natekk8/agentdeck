@@ -458,10 +458,20 @@ class Links:
                 "local_relay": self.local_relay_status(),
             }
 
+    def _port_open(self, host, port):
+        try:
+            with socket.create_connection((host, int(port)), timeout=0.2):
+                return True
+        except OSError:
+            return False
+
     def local_relay_status(self):
         with self.lock:
+            internal = self.local_relay_server is not None
+            external = (not internal) and self._port_open(self.local_relay_bind, self.local_relay_port)
             return {
-                "running": self.local_relay_server is not None,
+                "running": internal or external,
+                "external": external,
                 "bind": self.local_relay_bind,
                 "port": self.local_relay_port,
                 "channels": len(self.config.get("devices", {})),
@@ -477,6 +487,10 @@ class Links:
             try:
                 server = make_relay_server((bind, int(port)), channels)
             except OSError as error:
+                if int(port) > 0 and self._port_open(bind, int(port)):
+                    self.local_relay_bind = bind
+                    self.local_relay_port = int(port)
+                    return self.local_relay_status()
                 raise ValueError(tr(self.lang(), "relay_local_failed", port=port, error=error)) from error
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
