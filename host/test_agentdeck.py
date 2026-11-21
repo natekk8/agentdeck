@@ -645,6 +645,75 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual("pl", res["lang"])
         self.assertEqual("pl", self.deck.desktop("settings_get", {})["language"])
 
+    def test_last_seen_version_persists(self):
+        saved = self.deck.desktop("settings_save", {"last_seen_version": "1.0.0"})
+        self.assertEqual("1.0.0", saved["last_seen_version"])
+        loaded = self.deck.desktop("settings_get", {})
+        self.assertEqual("1.0.0", loaded["last_seen_version"])
+        self.assertEqual("1.0.0", loaded["version"])
+        self.assertEqual("v1 Preview", loaded["display_version"])
+
+    def test_devices_reports_firmware_update_needed(self):
+        links = Links(Path(self.temp.name), self.deck, lambda *a: None)
+        dev_id = "aabbccddeeff001122334455"
+        links.observe({"device": dev_id, "firmware": "0.6.0", "battery": 88}, usb=True)
+        info = links.devices()
+        self.assertEqual("1.0.0", info["expected_firmware"])
+        self.assertEqual("0.6.0", info["stick_firmware"])
+        self.assertTrue(info["firmware_update_needed"])
+
+        links.observe({"device": dev_id, "firmware": "1.0.0", "battery": 88}, usb=True)
+        info2 = links.devices()
+        self.assertEqual("1.0.0", info2["stick_firmware"])
+        self.assertFalse(info2["firmware_update_needed"])
+
+    def test_updater_download_and_apply_script(self):
+        import io
+        import time
+        from updater import Updater
+
+        data_dir = Path(self.temp.name)
+        updater = Updater(data_dir, data_dir)
+        payload = b"MZ_FAKE_INNO_INSTALLER_BINARY" * 16
+
+        class FakeDownloadResp(io.BytesIO):
+            def __init__(self, data):
+                super().__init__(data)
+                self.headers = {"Content-Length": str(len(data))}
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        with patch("updater.urlopen", return_value=FakeDownloadResp(payload)):
+            status = updater.start_download(
+                "https://github.com/natekk8/agentdeck/releases/download/v1.0.1/AgentDeck-Setup-1.0.1.exe",
+                "AgentDeck-Setup-1.0.1.exe",
+                target_version="1.0.1",
+            )
+            self.assertEqual("downloading", status["status"])
+            for _ in range(40):
+                st = updater.snapshot()
+                if st["status"] == "ready":
+                    break
+                time.sleep(0.02)
+            st = updater.snapshot()
+            self.assertEqual("ready", st["status"])
+            self.assertTrue(Path(st["installer_path"]).exists())
+            self.assertEqual(payload, Path(st["installer_path"]).read_bytes())
+
+            with patch("updater.subprocess.Popen") as popen_mock:
+                res = updater.apply_update()
+                self.assertTrue(res["launching_installer"])
+                self.assertTrue(popen_mock.called)
+                ps_path = Path(st["installer_path"]).parent / "apply-update.ps1"
+                self.assertTrue(ps_path.exists())
+                ps_text = ps_path.read_text(encoding="utf-8")
+                self.assertIn("/VERYSILENT", ps_text)
+                self.assertIn("Remove-Item -LiteralPath", ps_text)
+                self.assertIn("Start-Process -FilePath", ps_text)
+
+
 
 if __name__ == "__main__":
     unittest.main()

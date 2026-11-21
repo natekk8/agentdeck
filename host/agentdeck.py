@@ -329,6 +329,7 @@ class Deck:
             "language": DEFAULT_LANG,
             "projects_root": str(default_projects_root()),
             "onboarded": False,
+            "last_seen_version": "",
             "sentry_dsn": "",
             "glitchtip_dsn": "",
         }
@@ -341,6 +342,7 @@ class Deck:
                     if root:
                         defaults["projects_root"] = root
                     defaults["onboarded"] = bool(loaded.get("onboarded", False))
+                    defaults["last_seen_version"] = str(loaded.get("last_seen_version") or "").strip()
                     dsn = str(loaded.get("sentry_dsn") or loaded.get("glitchtip_dsn") or "").strip()
                     defaults["sentry_dsn"] = dsn
                     defaults["glitchtip_dsn"] = dsn
@@ -659,6 +661,46 @@ class Deck:
         }
         return {"id": new_id, "label": clean, "path": str(resolved_new)}
 
+    def flash_stick_firmware(self, links, port=""):
+        lang = self.language()
+        fw_bin = ROOT / "AgentDeck-StickS3.bin"
+        if not fw_bin.is_file():
+            raise ValueError(tr(lang, "stick_flash_no_bin"))
+        esptool_py = Path(r"D:\AgentDeck-tools\platformio\packages\tool-esptoolpy\esptool.py")
+        cmd_prefix = None
+        if esptool_py.is_file():
+            cmd_prefix = [sys.executable, str(esptool_py)]
+        else:
+            try:
+                import esptool  # noqa: F401
+                cmd_prefix = [sys.executable, "-m", "esptool"]
+            except ImportError:
+                pass
+        if not cmd_prefix:
+            raise ValueError(tr(lang, "stick_flash_no_tool"))
+        target_port = str(port or links.usb_port or available_serial(None) or "").strip()
+        if not target_port:
+            raise ValueError(tr(lang, "connect_usb"))
+        links.usb_paused.set()
+        try:
+            time.sleep(0.45)
+            proc = subprocess.run(
+                cmd_prefix + [
+                    "--chip", "esp32s3", "--port", target_port, "--baud", "460800",
+                    "write_flash", "0x170000", str(fw_bin),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if proc.returncode != 0:
+                detail = (proc.stderr or proc.stdout or "").strip()[-240:]
+                raise ValueError(tr(lang, "stick_flash_failed", detail=detail or f"exit {proc.returncode}"))
+            return {"flashed": True, "port": target_port}
+        finally:
+            links.usb_paused.clear()
+
     def desktop(self, operation, request):
         lang = self.language()
         if operation == "update_check":
@@ -714,6 +756,9 @@ class Deck:
                         changed = True
                 if "onboarded" in request:
                     self.settings["onboarded"] = bool(request.get("onboarded"))
+                    changed = True
+                if "last_seen_version" in request:
+                    self.settings["last_seen_version"] = str(request.get("last_seen_version") or "").strip()
                     changed = True
                 if "sentry_dsn" in request or "glitchtip_dsn" in request:
                     dsn = str(request.get("sentry_dsn") if "sentry_dsn" in request else request.get("glitchtip_dsn") or "").strip()
@@ -1413,6 +1458,9 @@ def serial_loop(deck, port, done, links):
     import serial
 
     while not done.is_set():
+        if links.usb_paused.is_set():
+            done.wait(0.25)
+            continue
         device = available_serial(port)
         if device is None:
             done.wait(1)
@@ -1421,11 +1469,13 @@ def serial_loop(deck, port, done, links):
         try:
             with serial.Serial(device, 115200, timeout=.10, write_timeout=1) as link:
                 print(f"AgentDeck USB: {device}", flush=True)
+                with links.lock:
+                    links.usb_port = device
                 buffer = bytearray()
                 status_id = ""
                 next_status = 0
                 last_contact = 0
-                while not done.is_set():
+                while not done.is_set() and not links.usb_paused.is_set():
                     now = time.monotonic()
                     if not action:
                         try:
@@ -1487,6 +1537,7 @@ def serial_loop(deck, port, done, links):
             with links.lock:
                 links.usb_ready = False
                 links.usb_device = ""
+                links.usb_port = ""
             if action:
                 action.ready.set()
         done.wait(1)

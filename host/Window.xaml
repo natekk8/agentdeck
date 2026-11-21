@@ -421,55 +421,95 @@
     </Style>
   </Window.Resources>
 
-  <Border Name="MainContainer" BorderBrush="#1C2438" BorderThickness="1" CornerRadius="12" Background="{StaticResource Bg}">
+  <Border Name="MainContainer" BorderBrush="#1C2438" BorderThickness="1" CornerRadius="12" Background="{StaticResource Bg}" ClipToBounds="True">
     <Grid>
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="264"/>
+        <ColumnDefinition Width="276"/>
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
 
+      <!-- Subtle Ambient Orbs -->
+      <Canvas Grid.ColumnSpan="2" IsHitTestVisible="False" ClipToBounds="True">
+        <Ellipse Name="BgOrb1" Width="460" Height="460" Canvas.Left="-140" Canvas.Top="-160" Opacity="0.45">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#285F8BFF" Offset="0"/>
+              <GradientStop Color="#005F8BFF" Offset="1"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Ellipse Name="BgOrb2" Width="420" Height="420" Canvas.Right="-120" Canvas.Bottom="-150" Opacity="0.38">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Color="#2034D399" Offset="0"/>
+              <GradientStop Color="#0034D399" Offset="1"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+      </Canvas>
+
       <!-- Sidebar -->
       <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0" CornerRadius="12,0,0,12">
-        <DockPanel Margin="18,18,18,18" LastChildFill="False">
-          <StackPanel DockPanel.Dock="Top">
-            <!-- Brand Header -->
-            <Grid Margin="2,0,2,24">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="46"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-              </Grid.ColumnDefinitions>
-              <Border Width="46" Height="46" CornerRadius="12" Background="#121829" BorderBrush="#232E4A" BorderThickness="1" Padding="3">
-                <Grid>
-                  <Image Name="BrandLogo" Stretch="Uniform" Visibility="Collapsed"/>
-                  <Viewbox Name="BrandFallback">
-                    <Canvas Width="1024" Height="1024">
-                      <Path Data="M225.019 348.676C200.248 298.052 247.243 242.046 301.4 257.649L788.018 397.852C833.201 410.87 850.04 466.072 819.816 502.092L555.77 816.77C525.546 852.789 468.258 845.792 447.592 803.556L225.019 348.676Z">
-                        <Path.Fill>
-                          <RadialGradientBrush MappingMode="RelativeToBoundingBox" GradientOrigin="0.20,0.22" Center="0.30,0.32" RadiusX="0.85" RadiusY="0.85">
-                            <GradientStop Color="#81A6F8" Offset="0"/>
-                            <GradientStop Color="#10082C" Offset="1"/>
-                          </RadialGradientBrush>
-                        </Path.Fill>
-                      </Path>
-                      <Path Data="M377.121 358.488L385.45 375.526L402.488 367.197L410.817 384.234L427.854 375.905L436.183 392.942L453.22 384.614L461.549 401.651L444.512 409.98L452.841 427.017L435.803 435.346L444.132 452.384L427.095 460.713L435.424 477.75L316.162 536.052L299.504 501.978L333.579 485.32L308.592 434.208L274.517 450.865L257.859 416.791L377.121 358.488ZM342.667 417.55L367.654 468.662L401.728 452.004L393.4 434.967L410.437 426.638L402.108 409.6L385.071 417.929L376.742 400.892L342.667 417.55ZM494.887 469.845L544.86 572.069L527.823 580.398L536.152 597.436L399.852 664.067L391.524 647.03L374.486 655.359L324.513 553.134L494.887 469.845ZM408.94 596.297L417.269 613.334L485.419 580.019L477.09 562.981L494.127 554.652L477.47 520.578L375.245 570.551L391.903 604.626L408.94 596.297Z" Fill="White"/>
-                    </Canvas>
-                  </Viewbox>
-                </Grid>
-              </Border>
-              <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="AgentDeck" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-                  <Border Background="#18223A" BorderBrush="#2C3E66" BorderThickness="1" CornerRadius="6" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Name="VersionBadge" Text="v1 Preview" FontSize="10" FontWeight="SemiBold" Foreground="#93B4FF"/>
-                  </Border>
-                </StackPanel>
-                <TextBlock Name="BrandTagline" Text="Remote AI IDE control in your pocket." FontSize="11"
-                           Foreground="#81A6F8" TextWrapping="Wrap" Margin="0,3,0,0"/>
-              </StackPanel>
-            </Grid>
+        <DockPanel Margin="18,16,18,16" LastChildFill="True">
+          <!-- Brand Header -->
+          <Grid DockPanel.Dock="Top" Margin="2,0,2,18">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="46"/>
+              <ColumnDefinition Width="12"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Width="46" Height="46" CornerRadius="12" Background="#121829" BorderBrush="#232E4A" BorderThickness="1" Padding="3" VerticalAlignment="Top">
+              <Grid>
+                <Image Name="BrandLogo" Stretch="Uniform" Visibility="Collapsed"/>
+                <Viewbox Name="BrandFallback">
+                  <Canvas Width="1024" Height="1024">
+                    <Path Data="M225.019 348.676C200.248 298.052 247.243 242.046 301.4 257.649L788.018 397.852C833.201 410.87 850.04 466.072 819.816 502.092L555.77 816.77C525.546 852.789 468.258 845.792 447.592 803.556L225.019 348.676Z">
+                      <Path.Fill>
+                        <RadialGradientBrush MappingMode="RelativeToBoundingBox" GradientOrigin="0.20,0.22" Center="0.30,0.32" RadiusX="0.85" RadiusY="0.85">
+                          <GradientStop Color="#81A6F8" Offset="0"/>
+                          <GradientStop Color="#10082C" Offset="1"/>
+                        </RadialGradientBrush>
+                      </Path.Fill>
+                    </Path>
+                    <Path Data="M377.121 358.488L385.45 375.526L402.488 367.197L410.817 384.234L427.854 375.905L436.183 392.942L453.22 384.614L461.549 401.651L444.512 409.98L452.841 427.017L435.803 435.346L444.132 452.384L427.095 460.713L435.424 477.75L316.162 536.052L299.504 501.978L333.579 485.32L308.592 434.208L274.517 450.865L257.859 416.791L377.121 358.488ZM342.667 417.55L367.654 468.662L401.728 452.004L393.4 434.967L410.437 426.638L402.108 409.6L385.071 417.929L376.742 400.892L342.667 417.55ZM494.887 469.845L544.86 572.069L527.823 580.398L536.152 597.436L399.852 664.067L391.524 647.03L374.486 655.359L324.513 553.134L494.887 469.845ZM408.94 596.297L417.269 613.334L485.419 580.019L477.09 562.981L494.127 554.652L477.47 520.578L375.245 570.551L391.903 604.626L408.94 596.297Z" Fill="White"/>
+                  </Canvas>
+                </Viewbox>
+              </Grid>
+            </Border>
+            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+              <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="AgentDeck" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,7,2"/>
+                <Border Background="#18223A" BorderBrush="#2C3E66" BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center" Margin="0,0,0,2">
+                  <TextBlock Name="VersionBadge" Text="v1 Preview" FontSize="10" FontWeight="SemiBold" Foreground="#93B4FF"/>
+                </Border>
+              </WrapPanel>
+              <TextBlock Name="BrandTagline" Text="Remote AI IDE control in your pocket." FontSize="11"
+                         Foreground="#81A6F8" TextWrapping="Wrap" Margin="0,2,0,0"/>
+            </StackPanel>
+          </Grid>
 
-            <!-- Navigation -->
+          <!-- Bottom Live Stick Status + Battery Card -->
+          <Border DockPanel.Dock="Bottom" Background="#111726" BorderBrush="#212C44" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,10,0,0">
+            <StackPanel>
+              <DockPanel Margin="0,0,0,6">
+                <Border Name="SidebarBatteryBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A"
+                        BorderThickness="1" CornerRadius="6" Padding="7,2" Visibility="Collapsed">
+                  <TextBlock Name="SidebarBatteryText" Text="100%" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}"/>
+                </Border>
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse Name="LinkDot" Width="8" Height="8" Fill="#34D399" Margin="0,0,8,0"/>
+                  <TextBlock Name="LinkStatus" Text="Connecting..." FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource Mint}"/>
+                </StackPanel>
+              </DockPanel>
+              <ProgressBar Name="SidebarBatteryBar" Height="4" Minimum="0" Maximum="100" Value="0"
+                           Foreground="#34D399" Background="#1A2236" BorderThickness="0" Margin="0,0,0,7" Visibility="Collapsed"/>
+              <TextBlock Name="Context" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource Muted}" Text="Waiting for StickS3"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Scrollable Navigation -->
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
             <Button Name="NavPrompts" Style="{StaticResource Nav}">
               <StackPanel Orientation="Horizontal">
                 <Path Data="M3,5 H9 L11,7 H21 V19 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
@@ -518,26 +558,8 @@
                 <TextBlock Name="NavSettingsText" Text="Settings" FontWeight="Medium"/>
               </StackPanel>
             </Button>
-          </StackPanel>
-
-          <!-- Bottom Live Stick Status + Battery Card -->
-          <Border DockPanel.Dock="Bottom" Background="#111726" BorderBrush="#212C44" BorderThickness="1" CornerRadius="14" Padding="14">
-            <StackPanel>
-              <DockPanel Margin="0,0,0,6">
-                <Border Name="SidebarBatteryBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A"
-                        BorderThickness="1" CornerRadius="6" Padding="7,2" Visibility="Collapsed">
-                  <TextBlock Name="SidebarBatteryText" Text="100%" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}"/>
-                </Border>
-                <StackPanel Orientation="Horizontal">
-                  <Ellipse Name="LinkDot" Width="8" Height="8" Fill="#34D399" Margin="0,0,8,0"/>
-                  <TextBlock Name="LinkStatus" Text="Connecting..." FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource Mint}"/>
-                </StackPanel>
-              </DockPanel>
-              <ProgressBar Name="SidebarBatteryBar" Height="4" Minimum="0" Maximum="100" Value="0"
-                           Foreground="#34D399" Background="#1A2236" BorderThickness="0" Margin="0,0,0,7" Visibility="Collapsed"/>
-              <TextBlock Name="Context" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource Muted}" Text="Waiting for StickS3"/>
             </StackPanel>
-          </Border>
+          </ScrollViewer>
         </DockPanel>
       </Border>
 
@@ -573,25 +595,47 @@
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
 
-          <!-- Animated Top Auto-Updater Bar -->
-          <Border Name="UpdateBanner" Visibility="Collapsed" Margin="0,0,0,14" Background="#121C36"
-                  BorderBrush="#3D61C2" BorderThickness="1" CornerRadius="14" Padding="15,10">
-            <DockPanel>
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Name="UpdateActionBtn" Style="{StaticResource PrimaryBtn}" Padding="15,7" FontSize="12.5" Content="Update to v0.6.1" Margin="0,0,6,0"/>
-                <Button Name="UpdateDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#283552"/>
-              </StackPanel>
-              <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal">
-                  <Ellipse Name="UpdateDot" Width="8" Height="8" Fill="#5F8BFF" Margin="0,0,8,0"/>
-                  <TextBlock Name="UpdateBannerTitle" FontSize="13.5" FontWeight="SemiBold" Text="Update available"/>
+          <!-- Top Animated Banners -->
+          <StackPanel Grid.Row="0">
+            <!-- Animated Top Auto-Updater Bar -->
+            <Border Name="UpdateBanner" Visibility="Collapsed" Margin="0,0,0,12" Background="#121C36"
+                    BorderBrush="#3D61C2" BorderThickness="1" CornerRadius="14" Padding="15,10">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                  <Button Name="UpdateActionBtn" Style="{StaticResource PrimaryBtn}" Padding="15,7" FontSize="12.5" Content="Update to v1 Preview" Margin="0,0,6,0"/>
+                  <Button Name="UpdateDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#283552"/>
                 </StackPanel>
-                <TextBlock Name="UpdateBannerSub" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="16,2,0,0" Text="Ready to download"/>
-                <ProgressBar Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Value="0" Margin="16,6,0,0"
-                             Foreground="#5F8BFF" Background="#1D2742" BorderThickness="0" Visibility="Collapsed"/>
-              </StackPanel>
-            </DockPanel>
-          </Border>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Ellipse Name="UpdateDot" Width="8" Height="8" Fill="#5F8BFF" Margin="0,0,8,0"/>
+                    <TextBlock Name="UpdateBannerTitle" FontSize="13.5" FontWeight="SemiBold" Text="Update available"/>
+                  </StackPanel>
+                  <TextBlock Name="UpdateBannerSub" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="16,2,0,0" Text="Ready to download"/>
+                  <ProgressBar Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Value="0" Margin="16,6,0,0"
+                               Foreground="#5F8BFF" Background="#1D2742" BorderThickness="0" Visibility="Collapsed"/>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+
+            <!-- StickS3 Firmware Update Prompt -->
+            <Border Name="StickFwBanner" Visibility="Collapsed" Margin="0,0,0,12" Background="#1A150B"
+                    BorderBrush="#B47C1A" BorderThickness="1" CornerRadius="14" Padding="15,10">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                  <Button Name="StickFwUpdateBtn" Style="{StaticResource PrimaryBtn}" Padding="14,7" FontSize="12.5" Content="Update StickS3 Firmware" Margin="0,0,6,0"/>
+                  <Button Name="StickFwDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#4E3916"/>
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Ellipse Name="StickFwDot" Width="8" Height="8" Fill="#FBBF24" Margin="0,0,8,0"/>
+                    <TextBlock Name="StickFwTitle" FontSize="13.5" FontWeight="SemiBold" Text="StickS3 firmware update required"/>
+                  </StackPanel>
+                  <TextBlock Name="StickFwSub" FontSize="11.5" Foreground="#E2C07D" Margin="16,2,0,0" TextWrapping="Wrap"
+                             Text="Connect your M5Stick S3 via USB-C to update it to v1.0.0."/>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+          </StackPanel>
 
           <!-- Page Header -->
           <StackPanel Grid.Row="1" Margin="0,0,0,14">
@@ -647,11 +691,11 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
-                          <StackPanel>
+                          <StackPanel Margin="0,0,10,0">
                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
                           </StackPanel>
-                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" Margin="4,0,2,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
                             <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10" FontWeight="Bold"/>
                           </Border>
                         </Grid>
@@ -665,7 +709,7 @@
                 <Grid>
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="124"/>
+                    <RowDefinition Height="116"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -687,11 +731,11 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
-                          <StackPanel>
+                          <StackPanel Margin="0,0,10,0">
                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
                           </StackPanel>
-                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" Margin="4,0,2,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
                             <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="SemiBold"/>
                           </Border>
                         </Grid>
@@ -699,8 +743,8 @@
                     </ListBox.ItemTemplate>
                   </ListBox>
 
-                  <StackPanel Grid.Row="2" Margin="0,12,0,4">
-                    <TextBlock Name="SuggestedTitle" Style="{StaticResource FieldLabel}" Text="Suggested templates (click to load):"/>
+                  <StackPanel Grid.Row="2" Margin="0,10,0,2">
+                    <TextBlock Name="SuggestedTitle" Style="{StaticResource FieldLabel}" Text="Suggested templates (click to load):" Margin="0,0,0,5"/>
                     <WrapPanel Name="TemplateChips"/>
                   </StackPanel>
 
@@ -739,7 +783,7 @@
             <Border Name="Sessions" Style="{StaticResource Card}" Visibility="Collapsed">
               <DockPanel>
                 <TextBlock Name="SessionsTitle" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Text="Recent Stick Sessions"/>
-                <ListBox Name="SessionList" DockPanel.Dock="Top" Height="175" Margin="0,0,0,12">
+                <ListBox Name="SessionList" DockPanel.Dock="Top" Height="152" Margin="0,0,0,12">
                   <ListBox.ItemTemplate>
                     <DataTemplate>
                       <Grid>
@@ -1162,10 +1206,19 @@
           </Grid>
 
           <!-- Status Footer -->
-          <Grid Grid.Row="3" Margin="0,16,0,0">
-            <TextBlock Name="Status" Text="Ready" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
-            <ProgressBar Name="Activity" Width="130" Height="4" HorizontalAlignment="Right"
-                         IsIndeterminate="False" Visibility="Collapsed" Foreground="{StaticResource Accent}" Background="#171E30" BorderThickness="0"/>
+          <Grid Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock Name="Status" Text="Ready" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,0,170,0" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+              <Grid Name="ActivitySpinner" Width="16" Height="16" Margin="0,0,10,0" Visibility="Collapsed" RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                  <RotateTransform x:Name="SpinnerRotate" Angle="0"/>
+                </Grid.RenderTransform>
+                <Ellipse Width="16" Height="16" Stroke="#233150" StrokeThickness="2"/>
+                <Path Data="M8,1 A7,7 0 0,1 15,8" Stroke="#5F8BFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+              </Grid>
+              <ProgressBar Name="Activity" Width="120" Height="4"
+                           IsIndeterminate="False" Visibility="Collapsed" Foreground="{StaticResource Accent}" Background="#171E30" BorderThickness="0"/>
+            </StackPanel>
           </Grid>
         </Grid>
       </Grid>
@@ -1270,6 +1323,46 @@
                 <Button Name="OnbNextBtn" Style="{StaticResource PrimaryBtn}" Content="Continue" Margin="0"/>
               </StackPanel>
             </DockPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- After-Update What's New Overlay -->
+      <Grid Name="AfterUpdateOverlay" Grid.ColumnSpan="2" Background="#D6060910" Visibility="Collapsed">
+        <Border Name="AfterUpdateCard" Width="540" VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#0F1421" BorderBrush="#314773" BorderThickness="1" CornerRadius="22" Padding="28">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,14">
+              <Border DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Center">
+                <TextBlock Name="AfterUpdateBadge" Text="v1 Preview" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Mint}"/>
+              </Border>
+              <StackPanel Orientation="Horizontal">
+                <Border Width="44" Height="44" CornerRadius="12" Background="#141C30" BorderBrush="#283554" BorderThickness="1" Padding="4">
+                  <Viewbox>
+                    <Canvas Width="1024" Height="1024">
+                      <Path Data="M225.019 348.676C200.248 298.052 247.243 242.046 301.4 257.649L788.018 397.852C833.201 410.87 850.04 466.072 819.816 502.092L555.77 816.77C525.546 852.789 468.258 845.792 447.592 803.556L225.019 348.676Z">
+                        <Path.Fill>
+                          <RadialGradientBrush MappingMode="RelativeToBoundingBox" GradientOrigin="0.20,0.22" Center="0.30,0.32" RadiusX="0.85" RadiusY="0.85">
+                            <GradientStop Color="#81A6F8" Offset="0"/>
+                            <GradientStop Color="#10082C" Offset="1"/>
+                          </RadialGradientBrush>
+                        </Path.Fill>
+                      </Path>
+                      <Path Data="M377.121 358.488L385.45 375.526L402.488 367.197L410.817 384.234L427.854 375.905L436.183 392.942L453.22 384.614L461.549 401.651L444.512 409.98L452.841 427.017L435.803 435.346L444.132 452.384L427.095 460.713L435.424 477.75L316.162 536.052L299.504 501.978L333.579 485.32L308.592 434.208L274.517 450.865L257.859 416.791L377.121 358.488ZM342.667 417.55L367.654 468.662L401.728 452.004L393.4 434.967L410.437 426.638L402.108 409.6L385.071 417.929L376.742 400.892L342.667 417.55ZM494.887 469.845L544.86 572.069L527.823 580.398L536.152 597.436L399.852 664.067L391.524 647.03L374.486 655.359L324.513 553.134L494.887 469.845ZM408.94 596.297L417.269 613.334L485.419 580.019L477.09 562.981L494.127 554.652L477.47 520.578L375.245 570.551L391.903 604.626L408.94 596.297Z" Fill="White"/>
+                    </Canvas>
+                  </Viewbox>
+                </Border>
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Name="AfterUpdateTitle" FontSize="20" FontWeight="Bold" Text="Updated to AgentDeck (v1 Preview)"/>
+                  <TextBlock Name="AfterUpdateSub" FontSize="12" Foreground="#81A6F8" Text="Everything is ready on your PC." Margin="0,2,0,0"/>
+                </StackPanel>
+              </StackPanel>
+            </DockPanel>
+            <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,18">
+              <TextBlock Name="AfterUpdateNotes" FontSize="13" Foreground="#D4DCEB" TextWrapping="Wrap" LineHeight="20"
+                         Text="• Cleaner Apple-style layout with ambient animations and responsive sizing&#10;• Live Auto-Updater &amp; 1-click USB firmware prompt for StickS3&#10;• Working Antigravity Remote Control, Relay &amp; Sentry feedback reporting"/>
+            </Border>
+            <Button Name="AfterUpdateCloseBtn" Style="{StaticResource PrimaryBtn}" Content="Continue to AgentDeck" HorizontalAlignment="Right" Margin="0"/>
           </StackPanel>
         </Border>
       </Grid>

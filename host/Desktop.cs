@@ -49,6 +49,8 @@ sealed class Desktop
     int pendingRevision, operations;
     int onboardingStep = 1;
     bool suppressAutostartEvent;
+    bool stickFwDismissed;
+    string appVersion = "";
     DateTime scanUntil, wifiUntil, loginWatchUntil = DateTime.MinValue;
     int knownCodexCount = -1;
     bool ticking;
@@ -328,6 +330,9 @@ sealed class Desktop
 
         C<Button>("UpdateActionBtn").Click += async (s, e) => await HandleUpdateBannerClick();
         Button("UpdateDismissBtn", HideUpdateBanner);
+        Action("StickFwUpdateBtn", "stick_fw_flashing", FlashStickFirmware);
+        Button("StickFwDismissBtn", () => { stickFwDismissed = true; C<Border>("StickFwBanner").Visibility = Visibility.Collapsed; });
+        C<Button>("AfterUpdateCloseBtn").Click += async (s, e) => await CloseAfterUpdate();
 
         C<CheckBox>("AutostartToggle").Checked += async (s, e) => await OnAutostartToggled(true);
         C<CheckBox>("AutostartToggle").Unchecked += async (s, e) => await OnAutostartToggled(false);
@@ -354,6 +359,11 @@ sealed class Desktop
 
         window.Loaded += async (sender, e) =>
         {
+            double maxH = Math.Max(600, SystemParameters.WorkArea.Height - 24);
+            double maxW = Math.Max(960, SystemParameters.WorkArea.Width - 24);
+            if (window.Height > maxH) window.Height = maxH;
+            if (window.Width > maxW) window.Width = maxW;
+            StartAmbientAnimations();
             AnimateEntrance(C<FrameworkElement>("MainContainer"));
             ApplyLanguage();
             UpdateFilterButtons();
@@ -367,6 +377,8 @@ sealed class Desktop
                 C<TextBox>("ProjectsRootInput").Text = Str(settings, "projects_root");
                 var onboarded = Flag(settings, "onboarded");
                 UpdateAutostartUi(Flag(settings, "autostart"), onboarded);
+                appVersion = Str(settings, "version");
+                var lastSeen = Str(settings, "last_seen_version");
                 var dver = Str(settings, "display_version");
                 if (dver.Length > 0) C<TextBlock>("VersionBadge").Text = dver;
                 ApplyLanguage();
@@ -375,6 +387,7 @@ sealed class Desktop
                 C<TextBox>("RelayAddress").Text = Str(relay, "endpoint");
                 UpdateLocalRelayBadge(Obj(relay, "local_relay"));
                 if (!onboarded) ShowOnboarding(1);
+                else if (appVersion.Length > 0 && lastSeen != appVersion) ShowAfterUpdate();
                 Note(L("ready"));
             });
             timer.Tick += async (s2, e2) => await RefreshState();
@@ -590,15 +603,69 @@ sealed class Desktop
         C<TextBlock>("Status").Foreground = error ? coral : muted;
     }
 
+    void StartAmbientAnimations()
+    {
+        if (!SystemParameters.ClientAreaAnimation) return;
+        var orb1 = window.FindName("BgOrb1") as FrameworkElement;
+        var orb2 = window.FindName("BgOrb2") as FrameworkElement;
+        if (orb1 != null)
+        {
+            var anim1 = new DoubleAnimation(0.28, 0.58, TimeSpan.FromSeconds(4.2))
+            {
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            orb1.BeginAnimation(UIElement.OpacityProperty, anim1);
+        }
+        if (orb2 != null)
+        {
+            var anim2 = new DoubleAnimation(0.22, 0.48, TimeSpan.FromSeconds(5.4))
+            {
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            orb2.BeginAnimation(UIElement.OpacityProperty, anim2);
+        }
+    }
+
+    void SetSpinnerActive(bool active)
+    {
+        var spinner = window.FindName("ActivitySpinner") as FrameworkElement;
+        var rot = window.FindName("SpinnerRotate") as RotateTransform;
+        if (spinner == null) return;
+        spinner.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        if (rot == null) return;
+        if (active && SystemParameters.ClientAreaAnimation)
+        {
+            var spin = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(0.85))
+            {
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            rot.BeginAnimation(RotateTransform.AngleProperty, spin);
+        }
+        else
+        {
+            rot.BeginAnimation(RotateTransform.AngleProperty, null);
+        }
+    }
+
     async Task Work(string text, Func<Task> work)
     {
         operations++;
         C<ProgressBar>("Activity").Visibility = Visibility.Visible;
         C<ProgressBar>("Activity").IsIndeterminate = SystemParameters.ClientAreaAnimation;
+        SetSpinnerActive(true);
         Note(text);
         try { await work(); }
         catch (Exception error) { Note(error.Message, true); }
-        finally { if (--operations == 0) C<ProgressBar>("Activity").Visibility = Visibility.Collapsed; }
+        finally
+        {
+            if (--operations == 0)
+            {
+                C<ProgressBar>("Activity").Visibility = Visibility.Collapsed;
+                SetSpinnerActive(false);
+            }
+        }
     }
 
     void Button(string name, Action work) { C<Button>(name).Click += (sender, e) => work(); }
@@ -1463,12 +1530,37 @@ sealed class Desktop
         UpdateOnboardingStick(lastDevicesResult);
     }
 
+    void ShowAfterUpdate()
+    {
+        var overlay = C<Grid>("AfterUpdateOverlay");
+        overlay.Visibility = Visibility.Visible;
+        AnimateEntrance(C<FrameworkElement>("AfterUpdateCard"));
+    }
+
+    async Task CloseAfterUpdate()
+    {
+        C<Grid>("AfterUpdateOverlay").Visibility = Visibility.Collapsed;
+        if (appVersion.Length > 0)
+        {
+            try { await Api("settings_save", "last_seen_version", appVersion); } catch { }
+        }
+    }
+
+    async Task FlashStickFirmware()
+    {
+        var res = await Api("stick_flash_firmware");
+        stickFwDismissed = true;
+        C<Border>("StickFwBanner").Visibility = Visibility.Collapsed;
+        Note(string.Format(L("stick_fw_flashed_fmt"), Str(res, "firmware")));
+        await RefreshState();
+    }
+
     async Task FinishOnboarding()
     {
         await Work(L("saving_settings"), async () =>
         {
             bool autoOn = C<CheckBox>("OnbAutoToggle").IsChecked == true;
-            var res = await Api("settings_save", "language", lang, "autostart", autoOn, "onboarded", true);
+            var res = await Api("settings_save", "language", lang, "autostart", autoOn, "onboarded", true, "last_seen_version", appVersion);
             UpdateAutostartUi(Flag(res, "autostart"));
         });
         C<Grid>("OnboardingOverlay").Visibility = Visibility.Collapsed;
@@ -1573,6 +1665,33 @@ sealed class Desktop
         badge.BorderBrush = bd;
     }
 
+    void UpdateStickFirmwareBanner(Record result)
+    {
+        var banner = window.FindName("StickFwBanner") as Border;
+        if (banner == null) return;
+        bool needed = Flag(result, "firmware_update_needed");
+        if (!needed) stickFwDismissed = false;
+        if (!needed || stickFwDismissed)
+        {
+            banner.Visibility = Visibility.Collapsed;
+            return;
+        }
+        bool usb = Flag(result, "usb");
+        string stickVer = Str(result, "stick_firmware");
+        string expVer = Str(result, "expected_firmware");
+        if (expVer.Length == 0) expVer = "1.0.0";
+        C<TextBlock>("StickFwTitle").Text = stickVer.Length > 0
+            ? string.Format(L("stick_fw_title_ver"), stickVer, expVer)
+            : string.Format(L("stick_fw_title"), expVer);
+        C<TextBlock>("StickFwSub").Text = usb
+            ? string.Format(L("stick_fw_ready_sub"), expVer)
+            : string.Format(L("stick_fw_usb_sub"), expVer);
+        C<Button>("StickFwUpdateBtn").Content = L("stick_fw_btn");
+        C<Button>("StickFwUpdateBtn").IsEnabled = usb;
+        C<Ellipse>("StickFwDot").Fill = usb ? mint : amber;
+        banner.Visibility = Visibility.Visible;
+    }
+
     async Task RefreshState()
     {
         if (ticking) return;
@@ -1621,6 +1740,7 @@ sealed class Desktop
             C<Ellipse>("LinkDot").Fill = isConnected ? mint : muted;
             C<TextBlock>("LinkStatus").Foreground = isConnected ? mint : muted;
             UpdateSidebarBattery(snapshot);
+            UpdateStickFirmwareBanner(result);
             C<TextBlock>("Context").Text = Display(snapshot, "project_name", Display(snapshot, "session", Display(snapshot, "screen", L("waiting_stick"))));
             C<TextBlock>("WifiStatus").Text = Display(snapshot, "ssid", L("stick_no_wifi")) + "  " + Str(snapshot, "wifi_message");
             UpdateOnboardingStick(result);
@@ -1974,7 +2094,12 @@ sealed class Desktop
         C<TextBlock>("ReportLogsLabel").Text = L("report_logs_label");
         C<TextBlock>("ReportLogsDesc").Text = L("report_logs_desc");
         C<Button>("SendReportBtn").Content = L("btn_send_report");
+        C<TextBlock>("AfterUpdateTitle").Text = L("after_update_title");
+        C<TextBlock>("AfterUpdateSub").Text = L("after_update_sub");
+        C<TextBlock>("AfterUpdateNotes").Text = L("after_update_notes");
+        C<Button>("AfterUpdateCloseBtn").Content = L("after_update_btn");
 
+        if (lastDevicesResult.Count > 0) UpdateStickFirmwareBanner(lastDevicesResult);
         if (updateVersion.Length > 0) RefreshUpdateBannerTexts();
         UpdateOnboardingTexts();
         UpdateHeading();
@@ -2275,7 +2400,18 @@ sealed class Desktop
                     { "report_logs_desc", "Includes recent bridge error logs with local usernames redacted." },
                     { "btn_send_report", "Submit Report" },
                     { "sending_report", "Sending report to Sentry.io..." },
-                    { "report_sent_fmt", "Report sent cleanly! Sentry Event: {0}" }
+                    { "report_sent_fmt", "Report sent cleanly! Sentry Event: {0}" },
+                    { "stick_fw_title", "StickS3 firmware update required (v{0})" },
+                    { "stick_fw_title_ver", "StickS3 update: v{0} -> v{1}" },
+                    { "stick_fw_usb_sub", "Connect your M5Stick S3 via USB-C to update firmware to v{0}." },
+                    { "stick_fw_ready_sub", "StickS3 detected on USB. Click to flash firmware v{0} automatically." },
+                    { "stick_fw_btn", "Update StickS3 Firmware" },
+                    { "stick_fw_flashing", "Flashing StickS3 firmware via USB..." },
+                    { "stick_fw_flashed_fmt", "StickS3 updated cleanly to v{0}." },
+                    { "after_update_title", "Updated to AgentDeck (v1 Preview)" },
+                    { "after_update_sub", "Everything is ready on your PC." },
+                    { "after_update_notes", "• Cleaner Apple-style layout with ambient animations and responsive sizing\n• Live Auto-Updater & 1-click USB firmware prompt for StickS3\n• Working Antigravity Remote Control, Relay & Sentry feedback reporting" },
+                    { "after_update_btn", "Continue to AgentDeck" }
                 }
             },
             {
@@ -2569,7 +2705,18 @@ sealed class Desktop
                     { "report_logs_desc", "Wysyła końcówkę logów mostka bez prywatnych nazw użytkownika." },
                     { "btn_send_report", "Wyślij zgłoszenie" },
                     { "sending_report", "Wysyłam zgłoszenie do Sentry.io..." },
-                    { "report_sent_fmt", "Wysłano! Identyfikator Sentry: {0}" }
+                    { "report_sent_fmt", "Wysłano! Identyfikator Sentry: {0}" },
+                    { "stick_fw_title", "Wymagana aktualizacja StickS3 (v{0})" },
+                    { "stick_fw_title_ver", "Aktualizacja StickS3: v{0} -> v{1}" },
+                    { "stick_fw_usb_sub", "Podłącz M5Stick S3 kablem USB-C, aby zaktualizować firmware do v{0}." },
+                    { "stick_fw_ready_sub", "Wykryto StickS3 na USB. Kliknij, aby wgrać firmware v{0} jednym kliknięciem." },
+                    { "stick_fw_btn", "Zaktualizuj StickS3" },
+                    { "stick_fw_flashing", "Wgrywam firmware StickS3 przez USB..." },
+                    { "stick_fw_flashed_fmt", "Zaktualizowano StickS3 do wersji v{0}." },
+                    { "after_update_title", "Zaktualizowano do AgentDeck (v1 Preview)" },
+                    { "after_update_sub", "Wszystko jest gotowe do pracy na Twoim PC." },
+                    { "after_update_notes", "• Dopracowany układ bez ucięć, orby w tle i płynny spinner pracy\n• Działający Auto-Updater i przypomnienie o aktualizacji StickS3 przez USB\n• Sprawny Remote Control Antigravity, przekaźnik oraz zgłoszenia Sentry" },
+                    { "after_update_btn", "Przejdź do AgentDeck" }
                 }
             }
         };

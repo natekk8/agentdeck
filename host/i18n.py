@@ -150,6 +150,9 @@ STRINGS = {
         "report_send_failed": "Could not send report to Sentry: {detail}",
         "update_invalid_url": "Installer URL must point to an official GitHub Release over HTTPS.",
         "update_not_ready": "Installer has not finished downloading yet.",
+        "stick_flash_no_bin": "StickS3 firmware binary (AgentDeck-StickS3.bin) was not found.",
+        "stick_flash_no_tool": "esptool was not found to flash StickS3.",
+        "stick_flash_failed": "Could not update StickS3 firmware: {detail}",
     },
     "pl": {
         "bridge_running": "Mostek AgentDeck jest już uruchomiony.",
@@ -297,6 +300,9 @@ STRINGS = {
         "report_send_failed": "Nie udało się wysłać zgłoszenia do Sentry: {detail}",
         "update_invalid_url": "Adres instalatora musi wskazywać na oficjalne wydanie GitHub (HTTPS).",
         "update_not_ready": "Instalator nie został jeszcze pobrany.",
+        "stick_flash_no_bin": "Nie znaleziono pliku firmware StickS3 (AgentDeck-StickS3.bin).",
+        "stick_flash_no_tool": "Nie znaleziono narzędzia esptool do aktualizacji StickS3.",
+        "stick_flash_failed": "Nie udało się zaktualizować firmware StickS3: {detail}",
     },
 }
 

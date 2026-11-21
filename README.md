@@ -1,52 +1,43 @@
-# AgentDeck v0.6 — Remote AI IDE control in your pocket.
+# AgentDeck (v1 Preview)
 
-AgentDeck lets you launch, monitor, and control **Codex** and **Antigravity** sessions on your Windows PC directly from an **M5Stick S3**. The Windows companion app manages IDE-synced projects, global & project-specific prompts, auto-saved Codex accounts, Antigravity subscription/quota status, live StickS3 battery monitoring, device pairing, Wi-Fi setup, and Remote Control integration.
+Zdalne sterowanie AI IDE w Twojej kieszeni.
 
-## Quick Start
+AgentDeck łączy komputer z Windows z urządzeniem M5Stick S3, dzięki czemu możesz uruchamiać prompty dla Antigravity i Codex CLI, podglądać postęp pracy agentów, odpowiadać na pytania w trakcie sesji oraz przełączać konta nawet wtedy, gdy odejdziesz od biurka.
 
-Double-click **`AgentDeck.exe`** (no console/CMD flash — automatically starts the silent background bridge) or run `Start-AgentDeck.ps1 -Desktop`. Complete the first-run **Onboarding Wizard** to set your language (**English** or **Polski**), enable silent Windows **Autostart** (for Wake on LAN), and pair your **StickS3**.
+## Co znajdziesz w aplikacji
 
-On a clean machine, install Python 3.12+, Codex CLI, and Antigravity CLI (`agy`), sign in, then run:
+- **Projekty i prompty** z automatycznym wykrywaniem workspace z Antigravity i Codex CLI oraz gotowymi szablonami promptów.
+- **Sesje na żywo** pozwalające podejrzeć odpowiedź agenta, status wykonania, pytania wymagające wyboru i pełny log po powrocie do komputera.
+- **Konta i subskrypcje** z podglądem aktywnego planu i limitów Antigravity oraz szybkim przełączaniem kont Codex CLI.
+- **Urządzenia i Wi-Fi** z parowaniem StickS3 przez USB-C jednym kliknięciem, podglądem baterii w procentach i synchronizacją ustawień między Windows a Stickiem.
+- **Remote Control i przekaźnik** do bezpiecznego sterowania IDE oraz pracy poza domową siecią Wi-Fi.
+- **Auto-Updater i aktualizacje StickS3** z paskiem pobierania z GitHub Releases, cichą instalacją w tle i przypomnieniem o podłączeniu Sticka przez USB, gdy firmware wymaga aktualizacji.
+- **Zgłoszenia (Feedback)** do szybkiego wysyłania błędów i propozycji funkcji na GitHub przez Sentry.io.
+
+## Szybki start na Windows
+
+1. Pobierz i uruchom instalator `AgentDeck-Setup-1.0.0.exe` z zakładki Releases.
+2. Uruchom **AgentDeck**. Przy pierwszym starcie kreator pomoże Ci wybrać język (polski lub angielski), włączyć cichy autostart w tle (bez okien CMD, potrzebny m.in. do Wake on LAN) oraz sparować StickS3.
+3. Podłącz M5Stick S3 kablem USB-C, jeśli aplikacja poprosi o parowanie lub wgranie nowej wersji firmware.
+
+## Struktura repozytorium
+
+- `host/`: aplikacja desktopowa WPF (`Window.xaml`, `Desktop.cs`), lokalny mostek Python (`agentdeck.py`, `links.py`, `updater.py`, `sessions.py`, `accounts.py`) oraz testy (`test_agentdeck.py`).
+- `firmware/`: firmware dla M5Stick S3 (ESP-IDF / Arduino / PlatformIO).
+- `installer/`: skrypty budowania `AgentDeck.exe` i instalatora Inno Setup (`AgentDeck-Setup-1.0.0.exe`).
+- `relay/`: serwer przekaźnika WebSocket (`relay.py`).
+- `assets/`: ikony i zasoby wizualne aplikacji.
+
+## Testy i budowanie lokalne
+
+Uruchomienie testów jednostkowych mostka i auto-updatera:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r host\requirements.txt
-.\Start-AgentDeck.ps1 -Desktop
+python -m unittest discover -s host -v
 ```
 
-## Highlights in v0.6
-
-- **Zero-CMD Windows Launcher & Autostart**: `AgentDeck.exe` and optional Windows login autostart run the Python bridge via `pythonw.exe` without opening a terminal window.
-- **First-Run Onboarding Wizard**: Choose English or Polish, enable background autostart for Wake on LAN, and pair your StickS3 via USB in three guided steps.
-- **StickS3 Battery Indicator**: Live battery percentage and charging status are sampled by the firmware (`0.6.0`) and displayed in both the StickS3 header bar and the Windows sidebar/Devices list.
-- **Intuitive Accounts & Antigravity Subscription Status**: Active Codex accounts are saved automatically for 1-click switching (`Switch` / `Add Codex Account`), while Antigravity displays your active plan tier (`Pro` / `Ultra` / `Standard`), credits, and weekly model quotas.
-- **Persistent Background Sessions**: Leaving the task view on StickS3 never interrupts execution on PC; returning to **Sessions** shows live status (`Running` / `Question` / `Completed`) and full paged output.
-
-## Language (English Default + Polish)
-
-- AgentDeck defaults to **English** on both Windows and M5Stick S3.
-- Switch between **English** and **Polski** anytime in Onboarding, Windows (**Settings -> Language**), or directly on the Stick (**Settings -> Language**).
-
-## IDE-Synced Projects, Quick New Projects & Global Prompts
-
-- **Codex**: reads registered projects from `~/.codex/.codex-global-state.json` and recent `thread/list` working directories.
-- **Antigravity**: reads registered projects from `~/.gemini/config/projects/*.json` and IDE/CLI/ACP workspace indexes.
-- **`+ New Project` on StickS3 or Windows**: creates a fresh Git-initialized folder inside your configured projects root (`D:\Projects`) using a random 2-word English slug (`solar-star`, etc.).
-- **All Projects (Global) Prompts**: prompts saved under **All Projects (Global)** (`project: "*"`) appear in every project on StickS3.
-
-## Remote Control & Away-From-Home Access
-
-- **Official IDE Remote Control**: manage `codex remote-control` and `agy remote-control` directly from **Remote Control** in Windows.
-- **StickS3 Encrypted Relay**: connects your StickS3 over any hotspot using end-to-end **AES-256-GCM + HMAC-SHA256** encryption (`host/relay.py` or built-in relay on port `8793`).
-
-## Firmware & Tests
-
-`AgentDeck-StickS3.bin` (`0.6.0`) is the OTA application image for M5Stick S3 / M5 Launcher.
+Budowanie aplikacji i instalatora Windows:
 
 ```powershell
-$env:PLATFORMIO_CORE_DIR = 'D:\AgentDeck-tools\platformio'
-$env:PLATFORMIO_BUILD_DIR = 'D:\AgentDeck-tools\upgrade-build'
-$env:PLATFORMIO_LIBDEPS_DIR = 'D:\AgentDeck-tools\vendor\.pio\libdeps'
-& 'D:\AgentDeck-tools\venv\Scripts\python.exe' -m platformio run
-& 'D:\AgentDeck-tools\venv\Scripts\python.exe' -m unittest discover -s host -v
+powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 ```

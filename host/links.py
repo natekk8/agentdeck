@@ -26,6 +26,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from i18n import DEFAULT_LANG, tr
 from relay import make_server as make_relay_server
+from version import EXPECTED_STICK_FIRMWARE
 
 PORT = 8766
 MAX_PACKET = 4096
@@ -187,6 +188,8 @@ class Links:
         self.usb = queue.Queue(maxsize=1)
         self.usb_ready = False
         self.usb_device = ""
+        self.usb_port = ""
+        self.usb_paused = threading.Event()
         self.seen = {}
         self.online = {}
         self.remote_online = {}
@@ -376,11 +379,28 @@ class Links:
             if self.usb_ready and self.usb_device and not any(p["id"] == self.usb_device for p in choices):
                 choices.append({"id": self.usb_device, "address": "", "online": False, "paired": False})
             values = []
+            needs_fw = False
+            stick_fw = ""
             for item in choices:
                 device = item["id"]
+                snap = self.snapshots.get(device, {})
+                fw = str(snap.get("firmware") or "")
+                if fw:
+                    stick_fw = fw
+                    if fw != EXPECTED_STICK_FIRMWARE:
+                        needs_fw = True
                 values.append({**item, "usb": self.usb_ready and self.usb_device == device,
-                               "snapshot": self.snapshots.get(device, {})})
-            return {"paired": choices, "usb": self.usb_ready, "devices": values, "lang": self.lang()}
+                               "snapshot": snap})
+            return {
+                "paired": choices,
+                "usb": self.usb_ready,
+                "usb_port": self.usb_port,
+                "devices": values,
+                "lang": self.lang(),
+                "expected_firmware": EXPECTED_STICK_FIRMWARE,
+                "stick_firmware": stick_fw,
+                "firmware_update_needed": needs_fw,
+            }
 
     def command(self, device, action, **values):
         lang = self.lang()
@@ -671,6 +691,8 @@ def desktop_server(deck, links):
                     if not links.usb_ready:
                         raise ValueError(tr(links.lang(), "open_usb_or_pairing"))
                     result = links.command(links.usb_device, "show_pairing")
+                elif operation == "stick_flash_firmware":
+                    result = deck.flash_stick_firmware(links, request.get("port", ""))
                 elif operation == "settings_save":
                     result = deck.desktop("settings_save", request)
                     if "language" in request:

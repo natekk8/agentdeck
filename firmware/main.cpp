@@ -719,7 +719,7 @@ const char* title();
 void deviceState(JsonObject result) {
     const bool online = WiFi.status() == WL_CONNECTED;
     result["device"] = decknet::deviceId();
-    result["firmware"] = "0.6.0";
+    result["firmware"] = "1.0.0";
     result["lang"] = langPl ? "pl" : "en";
     result["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
     result["charging"] = batteryCharging;
@@ -871,7 +871,7 @@ void serialInput(const String& line) {
         const esp_partition_t* running = esp_ota_get_running_partition();
         info["ok"] = true;
         info["id"] = ident;
-        info["firmware"] = "AgentDeck 0.6.0";
+        info["firmware"] = "AgentDeck 1.0.0";
         info["lang"] = langPl ? "pl" : "en";
         info["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
         info["charging"] = batteryCharging;
