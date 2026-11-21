@@ -31,7 +31,7 @@ sealed class Desktop
     readonly string marker;
     readonly HttpClient client = new HttpClient(new HttpClientHandler { UseProxy = false });
     readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
-    readonly string[] sections = { "Prompts", "Sessions", "Accounts", "Devices", "Wifi", "Remote", "Settings" };
+    readonly string[] sections = { "Prompts", "Sessions", "Accounts", "Devices", "Wifi", "Remote", "Feedback", "Settings" };
     readonly SolidColorBrush mint = Brush("#34D399");
     readonly SolidColorBrush blue = Brush("#60A5FA");
     readonly SolidColorBrush accent = Brush("#5F8BFF");
@@ -42,6 +42,8 @@ sealed class Desktop
 
     string lang = "en";
     string projectFilter = "";
+    string reportKind = "bug";
+    string updateState = "none", updateVersion = "", updateAssetUrl = "", updateAssetName = "";
     string section, deviceSignature, sessionSignature;
     string pendingScanDevice, pendingWifiDevice, pendingWifiId, wifiSelection;
     int pendingRevision, operations;
@@ -304,9 +306,19 @@ sealed class Desktop
         Action("SaveLanguageBtn", "applying_language", ApplySelectedLanguage);
         Button("BrowseProjectsRoot", BrowseProjectsRoot);
         Action("SaveProjectsRoot", "saving_settings", SaveProjectsRoot);
+        Action("SaveDsnBtn", "saving_settings", SaveGlitchtipDsn);
+        Action("CheckUpdateBtn", "checking_updates", () => CheckForUpdateAsync(false));
         Button("OpenWizardBtn", () => ShowOnboarding(1));
         Button("OpenDataFolderBtn", () => OpenFolder(dataDir));
         Button("OpenAppFolderBtn", () => OpenFolder(appDir));
+
+        Button("ReportCatBug", () => SetReportKind("bug"));
+        Button("ReportCatFeature", () => SetReportKind("feature"));
+        Button("ReportCatOther", () => SetReportKind("other"));
+        Action("SendReportBtn", "sending_report", SubmitFeedbackReport);
+
+        C<Button>("UpdateActionBtn").Click += async (s, e) => await HandleUpdateBannerClick();
+        Button("UpdateDismissBtn", HideUpdateBanner);
 
         C<CheckBox>("AutostartToggle").Checked += async (s, e) => await OnAutostartToggled(true);
         C<CheckBox>("AutostartToggle").Unchecked += async (s, e) => await OnAutostartToggled(false);
@@ -321,6 +333,7 @@ sealed class Desktop
 
         ApplyLanguage();
         UpdateFilterButtons();
+        SetReportKind("bug");
 
         window.Activated += async (s, e) =>
         {
@@ -335,6 +348,7 @@ sealed class Desktop
             AnimateEntrance(C<FrameworkElement>("MainContainer"));
             ApplyLanguage();
             UpdateFilterButtons();
+            SetReportKind("bug");
             Navigate("Prompts");
             await Work(L("loading_projects"), async () =>
             {
@@ -342,7 +356,11 @@ sealed class Desktop
                 lang = Str(settings, "language") == "pl" ? "pl" : "en";
                 C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
                 C<TextBox>("ProjectsRootInput").Text = Str(settings, "projects_root");
+                C<TextBox>("GlitchtipDsnInput").Text = Str(settings, "glitchtip_dsn");
+                UpdateGlitchtipBadge(Flag(settings, "glitchtip_configured"));
                 UpdateAutostartUi(Flag(settings, "autostart"));
+                var ver = Str(settings, "version");
+                if (ver.Length > 0) C<TextBlock>("VersionBadge").Text = "v" + ver;
                 ApplyLanguage();
                 await ReadProjects("");
                 var relay = await Api("relay_get");
@@ -354,6 +372,7 @@ sealed class Desktop
             timer.Tick += async (s2, e2) => await RefreshState();
             timer.Start();
             await RefreshState();
+            var updateCheck = CheckForUpdateQuietly();
         };
         window.Closed += (sender, e) => { timer.Stop(); client.Dispose(); };
     }
@@ -1147,6 +1166,198 @@ sealed class Desktop
         Note(L("settings_saved"));
     }
 
+    void UpdateGlitchtipBadge(bool configured)
+    {
+        var badge = C<TextBlock>("GlitchtipStatusBadge");
+        badge.Text = configured ? L("configured") : L("not_configured");
+        badge.Foreground = configured ? mint : muted;
+    }
+
+    async Task SaveGlitchtipDsn()
+    {
+        var dsn = C<TextBox>("GlitchtipDsnInput").Text.Trim();
+        var res = await Api("settings_save", "glitchtip_dsn", dsn);
+        C<TextBox>("GlitchtipDsnInput").Text = Str(res, "glitchtip_dsn");
+        UpdateGlitchtipBadge(Flag(res, "glitchtip_configured"));
+        Note(L("dsn_saved"));
+    }
+
+    void SetReportKind(string kind)
+    {
+        reportKind = kind;
+        SetPillState(C<Button>("ReportCatBug"), kind == "bug");
+        SetPillState(C<Button>("ReportCatFeature"), kind == "feature");
+        SetPillState(C<Button>("ReportCatOther"), kind == "other");
+    }
+
+    async Task SubmitFeedbackReport()
+    {
+        var title = C<TextBox>("ReportTitle").Text.Trim();
+        var body = C<TextBox>("ReportBody").Text.Trim();
+        var contact = C<TextBox>("ReportContact").Text.Trim();
+        var includeLogs = C<CheckBox>("ReportIncludeLogs").IsChecked == true;
+        var res = await Api(
+            "report_submit",
+            "kind", reportKind,
+            "title", title,
+            "description", body,
+            "contact", contact,
+            "include_logs", includeLogs
+        );
+        var eventId = Str(res, "event_id");
+        C<TextBox>("ReportTitle").Clear();
+        C<TextBox>("ReportBody").Clear();
+        var msg = string.Format(L("report_sent_fmt"), eventId.Length > 8 ? eventId.Substring(0, 8) : eventId);
+        C<TextBlock>("ReportStatusText").Text = msg;
+        C<TextBlock>("ReportStatusText").Foreground = mint;
+        Note(msg);
+    }
+
+    // Auto-Updater Flow
+    async Task CheckForUpdateQuietly()
+    {
+        try
+        {
+            await Task.Delay(2500);
+            await CheckForUpdateAsync(true);
+        }
+        catch { }
+    }
+
+    async Task CheckForUpdateAsync(bool silent)
+    {
+        var res = await Api("update_check");
+        if (Flag(res, "available"))
+        {
+            updateVersion = Display(res, "latest_version", Str(res, "tag"));
+            updateAssetUrl = Str(res, "asset_url");
+            updateAssetName = Str(res, "asset_name");
+            updateState = "available";
+            ShowUpdateBanner();
+            Note(string.Format(L("update_found_note"), updateVersion));
+        }
+        else if (!silent)
+        {
+            Note(L("no_updates_found"));
+        }
+    }
+
+    void ShowUpdateBanner()
+    {
+        var banner = C<Border>("UpdateBanner");
+        var wasHidden = banner.Visibility != Visibility.Visible;
+        banner.Visibility = Visibility.Visible;
+        RefreshUpdateBannerTexts();
+        if (wasHidden) AnimateEntrance(banner);
+    }
+
+    void HideUpdateBanner()
+    {
+        if (updateState == "downloading") return;
+        C<Border>("UpdateBanner").Visibility = Visibility.Collapsed;
+    }
+
+    void RefreshUpdateBannerTexts()
+    {
+        if (updateVersion.Length == 0) return;
+        var btn = C<Button>("UpdateActionBtn");
+        var bar = C<ProgressBar>("UpdateProgressBar");
+        var dot = C<Ellipse>("UpdateDot");
+        if (updateState == "downloading")
+        {
+            C<TextBlock>("UpdateBannerTitle").Text = string.Format(L("update_downloading_title"), updateVersion);
+            btn.Content = L("btn_downloading");
+            btn.IsEnabled = false;
+            bar.Visibility = Visibility.Visible;
+            bar.Foreground = accent;
+            dot.Fill = accent;
+        }
+        else if (updateState == "ready")
+        {
+            C<TextBlock>("UpdateBannerTitle").Text = string.Format(L("update_ready_title"), updateVersion);
+            C<TextBlock>("UpdateBannerSub").Text = L("update_ready_sub");
+            btn.Content = L("btn_restart_update");
+            btn.IsEnabled = true;
+            btn.Background = mint;
+            btn.BorderBrush = Brush("#6EE7B7");
+            btn.Foreground = Brush("#042419");
+            bar.Visibility = Visibility.Visible;
+            bar.Value = 100;
+            bar.Foreground = mint;
+            dot.Fill = mint;
+        }
+        else
+        {
+            C<TextBlock>("UpdateBannerTitle").Text = string.Format(L("update_avail_title"), updateVersion);
+            C<TextBlock>("UpdateBannerSub").Text = L("update_avail_sub");
+            btn.Content = string.Format(L("btn_update_to"), updateVersion);
+            btn.IsEnabled = true;
+            btn.ClearValue(Control.BackgroundProperty);
+            btn.ClearValue(Control.BorderBrushProperty);
+            btn.ClearValue(Control.ForegroundProperty);
+            bar.Visibility = Visibility.Collapsed;
+            dot.Fill = accent;
+        }
+    }
+
+    async Task HandleUpdateBannerClick()
+    {
+        if (updateState == "available")
+        {
+            await Work(L("downloading_update"), async () =>
+            {
+                await Api("update_download", "asset_url", updateAssetUrl, "asset_name", updateAssetName, "version", updateVersion);
+                updateState = "downloading";
+                C<ProgressBar>("UpdateProgressBar").Value = 0;
+                RefreshUpdateBannerTexts();
+            });
+        }
+        else if (updateState == "ready")
+        {
+            await Work(L("applying_update"), async () =>
+            {
+                await Api("update_apply");
+                window.Close();
+            });
+        }
+    }
+
+    async Task PollUpdateProgress()
+    {
+        if (updateState != "downloading") return;
+        var st = await Api("update_status");
+        var status = Str(st, "status");
+        var pct = IntVal(st, "percent", 0);
+        var dlMb = (Convert.ToDouble(Get(st, "downloaded") ?? 0)) / (1024.0 * 1024.0);
+        var totMb = (Convert.ToDouble(Get(st, "total") ?? 0)) / (1024.0 * 1024.0);
+        if (status == "downloading")
+        {
+            C<ProgressBar>("UpdateProgressBar").IsIndeterminate = totMb <= 0;
+            if (totMb > 0)
+            {
+                C<ProgressBar>("UpdateProgressBar").Value = pct;
+                C<TextBlock>("UpdateBannerSub").Text = string.Format(L("update_dl_pct"), pct, dlMb, totMb);
+            }
+            else
+            {
+                C<TextBlock>("UpdateBannerSub").Text = string.Format(L("update_dl_mb"), dlMb);
+            }
+        }
+        else if (status == "ready")
+        {
+            C<ProgressBar>("UpdateProgressBar").IsIndeterminate = false;
+            updateState = "ready";
+            ShowUpdateBanner();
+            Note(string.Format(L("update_ready_title"), updateVersion));
+        }
+        else if (status == "error")
+        {
+            updateState = "available";
+            ShowUpdateBanner();
+            Note(Str(st, "error"), true);
+        }
+    }
+
     // Onboarding Flow
     void ShowOnboarding(int step)
     {
@@ -1394,6 +1605,7 @@ sealed class Desktop
             C<TextBlock>("WifiStatus").Text = Display(snapshot, "ssid", L("stick_no_wifi")) + "  " + Str(snapshot, "wifi_message");
             UpdateOnboardingStick(result);
             await UpdateWifi(snapshot);
+            await PollUpdateProgress();
 
             if (DateTime.UtcNow < loginWatchUntil)
             {
@@ -1645,6 +1857,7 @@ sealed class Desktop
         C<TextBlock>("NavDevicesText").Text = L("nav_devices");
         C<TextBlock>("NavWifiText").Text = L("nav_wifi");
         C<TextBlock>("NavRemoteText").Text = L("nav_remote");
+        C<TextBlock>("NavFeedbackText").Text = L("nav_feedback");
         C<TextBlock>("NavSettingsText").Text = L("nav_settings");
 
         C<TextBlock>("ProjectsTitle").Text = L("projects_title");
@@ -1722,12 +1935,30 @@ sealed class Desktop
         C<TextBlock>("SettingsProjectsDesc").Text = L("settings_projects_desc");
         C<Button>("BrowseProjectsRoot").Content = L("btn_browse");
         C<Button>("SaveProjectsRoot").Content = L("btn_save_folder");
+        C<TextBlock>("SettingsGlitchtipTitle").Text = L("settings_gt_title");
+        C<TextBlock>("SettingsGlitchtipDesc").Text = L("settings_gt_desc");
+        C<Button>("SaveDsnBtn").Content = L("btn_save_dsn");
         C<TextBlock>("SettingsAboutTitle").Text = L("settings_about_title");
         C<TextBlock>("SettingsAboutDesc").Text = L("settings_about_desc");
+        C<Button>("CheckUpdateBtn").Content = L("btn_check_updates");
         C<Button>("OpenWizardBtn").Content = L("btn_open_wizard");
         C<Button>("OpenDataFolderBtn").Content = L("btn_open_data");
         C<Button>("OpenAppFolderBtn").Content = L("btn_open_app");
 
+        C<TextBlock>("FeedbackTitle").Text = L("feedback_title");
+        C<TextBlock>("FeedbackDesc").Text = L("feedback_desc");
+        C<TextBlock>("FeedbackKindLabel").Text = L("feedback_kind");
+        C<Button>("ReportCatBug").Content = L("cat_bug");
+        C<Button>("ReportCatFeature").Content = L("cat_feature");
+        C<Button>("ReportCatOther").Content = L("cat_other");
+        C<TextBlock>("ReportTitleLabel").Text = L("report_title_label");
+        C<TextBlock>("ReportContactLabel").Text = L("report_contact_label");
+        C<TextBlock>("ReportBodyLabel").Text = L("report_body_label");
+        C<TextBlock>("ReportLogsLabel").Text = L("report_logs_label");
+        C<TextBlock>("ReportLogsDesc").Text = L("report_logs_desc");
+        C<Button>("SendReportBtn").Content = L("btn_send_report");
+
+        if (updateVersion.Length > 0) RefreshUpdateBannerTexts();
         UpdateOnboardingTexts();
         UpdateHeading();
     }
@@ -1747,6 +1978,7 @@ sealed class Desktop
                     { "nav_devices", "Devices" },
                     { "nav_wifi", "Wi-Fi" },
                     { "nav_remote", "Remote Control" },
+                    { "nav_feedback", "Feedback" },
                     { "nav_settings", "Settings" },
                     { "sub_prompts", "IDE-synced projects, quick random workspaces, and global or per-project prompts" },
                     { "sub_sessions", "Inspect live running jobs, answer agent questions, and review completed output" },
@@ -1754,7 +1986,8 @@ sealed class Desktop
                     { "sub_devices", "Pair and monitor your M5Stick S3 battery & link over USB or Wi-Fi" },
                     { "sub_wifi", "Configure wireless networks directly on your StickS3" },
                     { "sub_remote", "Official Codex & Antigravity Remote Control + StickS3 away-from-home relay" },
-                    { "sub_settings", "Autostart for Wake on LAN, language preferences, new projects directory, and setup wizard" },
+                    { "sub_feedback", "Send Bug Reports & Feature Requests to @agentdeckbot via GlitchTip" },
+                    { "sub_settings", "Autostart for Wake on LAN, language preferences, GlitchTip DSN, and updates" },
                     { "projects_title", "IDE Projects" },
                     { "filter_all", "All" },
                     { "btn_new_project", "+ New Project" },
@@ -1988,7 +2221,43 @@ sealed class Desktop
                     { "pair_for_channels", "Pair Stick first to create channel keys." },
                     { "channels_saved", "Channel keys exported for relay server." },
                     { "relay_reachable", "Stick is reachable through the relay!" },
-                    { "relay_unreachable", "No response via relay. Check URL and Stick Wi-Fi." }
+                    { "relay_unreachable", "No response via relay. Check URL and Stick Wi-Fi." },
+                    { "settings_gt_title", "GlitchTip Reporter DSN" },
+                    { "settings_gt_desc", "Project Client Key (DSN) used by Feedback / Bug Report submissions." },
+                    { "btn_save_dsn", "Save DSN" },
+                    { "configured", "Configured" },
+                    { "not_configured", "Not configured" },
+                    { "dsn_saved", "GlitchTip DSN saved." },
+                    { "btn_check_updates", "Check for Updates" },
+                    { "checking_updates", "Checking GitHub Releases for updates..." },
+                    { "no_updates_found", "You are already on the latest version." },
+                    { "update_found_note", "New version v{0} is available." },
+                    { "update_avail_title", "AgentDeck v{0} is available" },
+                    { "update_avail_sub", "Download and install automatically from GitHub Releases." },
+                    { "btn_update_to", "Update to v{0}" },
+                    { "update_downloading_title", "Downloading AgentDeck v{0}..." },
+                    { "btn_downloading", "Downloading..." },
+                    { "downloading_update", "Starting update download..." },
+                    { "update_dl_pct", "{0}% downloaded ({1:F1} / {2:F1} MB)" },
+                    { "update_dl_mb", "{0:F1} MB downloaded..." },
+                    { "update_ready_title", "AgentDeck v{0} ready to install" },
+                    { "update_ready_sub", "Restart AgentDeck to install silently and remove temporary setup files." },
+                    { "btn_restart_update", "Restart to update" },
+                    { "applying_update", "Applying update and restarting..." },
+                    { "feedback_title", "Send Feedback to @agentdeckbot" },
+                    { "feedback_desc", "Submit a Bug Report, Feature Request, or idea via GlitchTip to open an issue on github.com/natekk8/agentdeck." },
+                    { "feedback_kind", "Category" },
+                    { "cat_bug", "Bug Report" },
+                    { "cat_feature", "Feature Request" },
+                    { "cat_other", "Other" },
+                    { "report_title_label", "Title" },
+                    { "report_contact_label", "Your GitHub @handle or email (optional)" },
+                    { "report_body_label", "Description (steps to reproduce or feature details)" },
+                    { "report_logs_label", "Attach sanitized diagnostics" },
+                    { "report_logs_desc", "Includes recent bridge error logs with local usernames redacted." },
+                    { "btn_send_report", "Submit Report" },
+                    { "sending_report", "Sending report to GlitchTip..." },
+                    { "report_sent_fmt", "Report sent cleanly! GlitchTip Event: {0}" }
                 }
             },
             {
@@ -2002,6 +2271,7 @@ sealed class Desktop
                     { "nav_devices", "Urządzenia" },
                     { "nav_wifi", "Wi-Fi" },
                     { "nav_remote", "Remote Control" },
+                    { "nav_feedback", "Zgłoszenia" },
                     { "nav_settings", "Ustawienia" },
                     { "sub_prompts", "Projekty wczytane z wybranego IDE, szybkie losowe foldery i szablony promptów" },
                     { "sub_sessions", "Przeglądaj aktywne i ukończone zadania oraz odpowiadaj na pytania agentów" },
@@ -2009,7 +2279,8 @@ sealed class Desktop
                     { "sub_devices", "Paruj StickS3 i sprawdzaj poziom baterii oraz połączenie USB / Wi-Fi" },
                     { "sub_wifi", "Konfiguruj sieci bezprzewodowe bezpośrednio na StickS3" },
                     { "sub_remote", "Natywne Remote Control Codex i Antigravity + szyfrowany przekaźnik StickS3" },
-                    { "sub_settings", "Autostart pod Wake on LAN, wybór języka, folder nowych projektów i kreator" },
+                    { "sub_feedback", "Wysyłaj Bug Reporty i Feature Requesty do @agentdeckbot przez GlitchTip" },
+                    { "sub_settings", "Autostart pod Wake on LAN, język, konfiguracja GlitchTip i aktualizacje" },
                     { "projects_title", "Projekty z IDE" },
                     { "filter_all", "Wszystkie" },
                     { "btn_new_project", "+ Nowy projekt" },
@@ -2243,7 +2514,43 @@ sealed class Desktop
                     { "pair_for_channels", "Sparuj Stick, aby utworzyć kanały." },
                     { "channels_saved", "Zapisano kanały dla serwera przekaźnika." },
                     { "relay_reachable", "Stick odpowiada przez przekaźnik." },
-                    { "relay_unreachable", "Brak odpowiedzi przez przekaźnik. Sprawdź adres i Wi-Fi." }
+                    { "relay_unreachable", "Brak odpowiedzi przez przekaźnik. Sprawdź adres i Wi-Fi." },
+                    { "settings_gt_title", "GlitchTip DSN dla zgłoszeń" },
+                    { "settings_gt_desc", "Klucz projektu (Client Key / DSN) z GlitchTip do wysyłania Bug Reportów i Feature Requestów." },
+                    { "btn_save_dsn", "Zapisz DSN" },
+                    { "configured", "Skonfigurowano" },
+                    { "not_configured", "Brak klucza" },
+                    { "dsn_saved", "Zapisano GlitchTip DSN." },
+                    { "btn_check_updates", "Sprawdź aktualizacje" },
+                    { "checking_updates", "Sprawdzam nowe wydania na GitHub..." },
+                    { "no_updates_found", "Używasz już najnowszej wersji." },
+                    { "update_found_note", "Dostępna nowa wersja v{0}." },
+                    { "update_avail_title", "Dostępna aktualizacja AgentDeck v{0}" },
+                    { "update_avail_sub", "Pobierz i zainstaluj automatycznie z GitHub Releases." },
+                    { "btn_update_to", "Zaktualizuj do v{0}" },
+                    { "update_downloading_title", "Pobieranie AgentDeck v{0}..." },
+                    { "btn_downloading", "Pobieranie..." },
+                    { "downloading_update", "Rozpoczynam pobieranie aktualizacji..." },
+                    { "update_dl_pct", "Pobrano {0}% ({1:F1} / {2:F1} MB)" },
+                    { "update_dl_mb", "Pobrano {0:F1} MB..." },
+                    { "update_ready_title", "Wersja AgentDeck v{0} gotowa do instalacji" },
+                    { "update_ready_sub", "Uruchom ponownie, aby zainstalować w tle i usunąć tymczasowy instalator." },
+                    { "btn_restart_update", "Uruchom ponownie" },
+                    { "applying_update", "Aktualizuję i uruchamiam ponownie..." },
+                    { "feedback_title", "Wyślij zgłoszenie do @agentdeckbot" },
+                    { "feedback_desc", "Wyślij Bug Report lub Feature Request przez GlitchTip — automatycznie utworzy zgłoszenie na github.com/natekk8/agentdeck." },
+                    { "feedback_kind", "Rodzaj zgłoszenia" },
+                    { "cat_bug", "Bug Report" },
+                    { "cat_feature", "Feature Request" },
+                    { "cat_other", "Inne" },
+                    { "report_title_label", "Tytuł" },
+                    { "report_contact_label", "Twój nick @github lub e-mail (opcjonalnie)" },
+                    { "report_body_label", "Opis (kroki odtworzenia błędu lub szczegóły pomysłu)" },
+                    { "report_logs_label", "Dołącz zanonimizowane logi" },
+                    { "report_logs_desc", "Wysyła końcówkę logów mostka bez prywatnych nazw użytkownika." },
+                    { "btn_send_report", "Wyślij zgłoszenie" },
+                    { "sending_report", "Wysyłam zgłoszenie do GlitchTip..." },
+                    { "report_sent_fmt", "Wysłano! Identyfikator GlitchTip: {0}" }
                 }
             }
         };

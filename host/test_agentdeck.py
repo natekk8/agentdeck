@@ -556,6 +556,88 @@ class BridgeTest(unittest.TestCase):
             reloaded = self.deck._load_settings()
             self.assertTrue(reloaded["onboarded"])
 
+    def test_updater_version_comparison_and_github_release_check(self):
+        from updater import check_for_update, is_newer, parse_version
+
+        self.assertEqual((0, 7, 1), parse_version("v0.7.1"))
+        self.assertEqual((1, 0, 0), parse_version("v1.0"))
+        self.assertTrue(is_newer("v0.7.0", "0.6.0"))
+        self.assertFalse(is_newer("v0.6.0", "0.6.0"))
+        self.assertFalse(is_newer("v0.5.9", "0.6.0"))
+
+        fake_release = {
+            "tag_name": "v0.7.0",
+            "name": "AgentDeck v0.7.0",
+            "body": "Faster Wi-Fi sync",
+            "published_at": "2026-11-22T10:00:00Z",
+            "assets": [
+                {
+                    "name": "AgentDeck-StickS3.bin",
+                    "browser_download_url": "https://github.com/natekk8/agentdeck/releases/download/v0.7.0/AgentDeck-StickS3.bin",
+                    "size": 1100000,
+                },
+                {
+                    "name": "AgentDeck-Setup-0.7.0.exe",
+                    "browser_download_url": "https://github.com/natekk8/agentdeck/releases/download/v0.7.0/AgentDeck-Setup-0.7.0.exe",
+                    "size": 3100000,
+                },
+            ],
+        }
+        with patch("updater._fetch_json", return_value=fake_release):
+            res = check_for_update(current_version="0.6.0", repo="natekk8/agentdeck")
+        self.assertTrue(res["available"])
+        self.assertEqual("0.7.0", res["latest_version"])
+        self.assertEqual("AgentDeck-Setup-0.7.0.exe", res["asset_name"])
+        self.assertIn("releases/download/v0.7.0/AgentDeck-Setup-0.7.0.exe", res["asset_url"])
+
+        with patch("agentdeck.check_for_update", return_value=res):
+            desktop_res = self.deck.desktop("update_check", {})
+            self.assertTrue(desktop_res["available"])
+
+    def test_glitchtip_reporter_parsing_sanitization_and_submit(self):
+        import json
+        from reporter import parse_dsn, sanitize_text, send_glitchtip_report
+
+        parsed = parse_dsn("https://abc123key@app.glitchtip.com/42")
+        self.assertEqual("https://app.glitchtip.com/api/42/store/", parsed["store_url"])
+        self.assertIn("sentry_key=abc123key", parsed["auth_header"])
+
+        redacted = sanitize_text(r"Failed reading C:\Users\Natanek\secret.txt Bearer supersecret123456")
+        self.assertNotIn("Natanek", redacted)
+        self.assertNotIn("supersecret123456", redacted)
+
+        captured = {}
+
+        class FakeResp:
+            status = 200
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                return b'{"id":"deadbeef1234"}'
+
+        def fake_urlopen(req, timeout=12):
+            captured["url"] = req.full_url
+            captured["auth"] = req.get_header("X-sentry-auth")
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return FakeResp()
+
+        with patch("reporter.urlopen", side_effect=fake_urlopen):
+            self.deck.desktop("settings_save", {"glitchtip_dsn": "https://pub999@app.glitchtip.com/7"})
+            res = self.deck.desktop("report_submit", {
+                "kind": "feature",
+                "title": "Add dark tray icon",
+                "description": r"Testing path C:\Users\Bob\file.txt in feature idea.",
+                "contact": "@natekk8",
+                "include_logs": True,
+            })
+        self.assertTrue(res["sent"])
+        self.assertEqual("deadbeef1234", res["event_id"])
+        self.assertEqual("https://app.glitchtip.com/api/7/store/", captured["url"])
+        self.assertEqual("feature", captured["body"]["tags"]["report_kind"])
+        self.assertNotIn("Bob", captured["body"]["extra"]["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

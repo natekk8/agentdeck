@@ -506,6 +506,12 @@
                 <TextBlock Name="NavRemoteText" Text="Remote Control" FontWeight="Medium"/>
               </StackPanel>
             </Button>
+            <Button Name="NavFeedback" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M4,4 H20 V16 H9 L4,20 Z M12,8 V11 M12,13.5 L12,13.7" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavFeedbackText" Text="Feedback" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
             <Button Name="NavSettings" Style="{StaticResource Nav}">
               <StackPanel Orientation="Horizontal">
                 <Path Data="M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 M4,12 L2,12 M22,12 L20,12 M12,4 L12,2 M12,22 L12,20" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
@@ -556,19 +562,40 @@
         <Grid Grid.Row="1" Margin="28,4,28,22">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
 
+          <!-- Animated Top Auto-Updater Bar -->
+          <Border Name="UpdateBanner" Visibility="Collapsed" Margin="0,0,0,14" Background="#121C36"
+                  BorderBrush="#3D61C2" BorderThickness="1" CornerRadius="14" Padding="15,10">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Name="UpdateActionBtn" Style="{StaticResource PrimaryBtn}" Padding="15,7" FontSize="12.5" Content="Update to v0.6.1" Margin="0,0,6,0"/>
+                <Button Name="UpdateDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#283552"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse Name="UpdateDot" Width="8" Height="8" Fill="#5F8BFF" Margin="0,0,8,0"/>
+                  <TextBlock Name="UpdateBannerTitle" FontSize="13.5" FontWeight="SemiBold" Text="Update available"/>
+                </StackPanel>
+                <TextBlock Name="UpdateBannerSub" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="16,2,0,0" Text="Ready to download"/>
+                <ProgressBar Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Value="0" Margin="16,6,0,0"
+                             Foreground="#5F8BFF" Background="#1D2742" BorderThickness="0" Visibility="Collapsed"/>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+
           <!-- Page Header -->
-          <StackPanel Margin="0,0,0,18">
+          <StackPanel Grid.Row="1" Margin="0,0,0,18">
             <TextBlock Name="Heading" FontSize="26" FontWeight="Bold" Text="Projects &amp; Prompts"/>
             <TextBlock Name="SubHeading" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,4,0,0"
                        Text="Manage IDE-synced projects, quick random workspaces, and prompt templates"/>
           </StackPanel>
 
           <!-- Page Body -->
-          <Grid Name="Body" Grid.Row="1">
+          <Grid Name="Body" Grid.Row="2">
             <!-- 1. Projects & Prompts -->
             <Grid Name="Prompts">
               <Grid.ColumnDefinitions>
@@ -1069,13 +1096,36 @@
                   </StackPanel>
                 </Border>
 
+                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                      <TextBlock Name="SettingsGlitchtipTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="GlitchTip Reporter DSN"/>
+                      <Border DockPanel.Dock="Right" Background="#161D2E" BorderBrush="{StaticResource LineBright}" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                        <TextBlock Name="GlitchtipStatusBadge" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Text="Not configured"/>
+                      </Border>
+                    </DockPanel>
+                    <TextBlock Name="SettingsGlitchtipDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Optional GlitchTip project Client Key (DSN) used by Bug Report &amp; Feature Request submissions."/>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <TextBox Name="GlitchtipDsnInput" FontFamily="Consolas" FontSize="12"/>
+                      <Button Name="SaveDsnBtn" Grid.Column="2" Style="{StaticResource PrimaryBtn}" Content="Save DSN" Margin="0"/>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource Card}">
                   <StackPanel>
-                    <TextBlock Name="SettingsAboutTitle" Style="{StaticResource SectionTitle}" Text="Setup Wizard &amp; Folders"/>
+                    <TextBlock Name="SettingsAboutTitle" Style="{StaticResource SectionTitle}" Text="Updates, Setup Wizard &amp; Folders"/>
                     <TextBlock Name="SettingsAboutDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Text="AgentDeck v0.6 · Launch the onboarding wizard anytime or open your local app and data directories."/>
+                               Text="AgentDeck v0.6 · Check GitHub Releases for updates, run the setup wizard, or open local folders."/>
                     <WrapPanel>
-                      <Button Name="OpenWizardBtn" Style="{StaticResource PrimaryBtn}" Content="Run Setup Wizard"/>
+                      <Button Name="CheckUpdateBtn" Style="{StaticResource PrimaryBtn}" Content="Check for Updates"/>
+                      <Button Name="OpenWizardBtn" Content="Run Setup Wizard"/>
                       <Button Name="OpenDataFolderBtn" Content="Open Data Folder"/>
                       <Button Name="OpenAppFolderBtn" Content="Open App Folder"/>
                     </WrapPanel>
@@ -1083,10 +1133,52 @@
                 </Border>
               </StackPanel>
             </ScrollViewer>
+
+            <!-- 8. Feedback / Reporter -->
+            <Border Name="Feedback" Style="{StaticResource Card}" Visibility="Collapsed">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                  <TextBlock Name="FeedbackTitle" Style="{StaticResource SectionTitle}" Text="Send Feedback to @agentdeckbot"/>
+                  <TextBlock Name="FeedbackDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                             Text="Submit a Bug Report, Feature Request, or general feedback directly through GlitchTip to open an issue on github.com/natekk8/agentdeck."/>
+                  <TextBlock Name="FeedbackKindLabel" Style="{StaticResource FieldLabel}" Text="Category"/>
+                  <WrapPanel Margin="0,0,0,12">
+                    <Button Name="ReportCatBug" Style="{StaticResource PillBtn}" Content="Bug Report"/>
+                    <Button Name="ReportCatFeature" Style="{StaticResource PillBtn}" Content="Feature Request"/>
+                    <Button Name="ReportCatOther" Style="{StaticResource PillBtn}" Content="Other"/>
+                  </WrapPanel>
+                  <TextBlock Name="ReportTitleLabel" Style="{StaticResource FieldLabel}" Text="Title"/>
+                  <TextBox Name="ReportTitle" MaxLength="140" Margin="0,0,0,10"/>
+                  <DockPanel Margin="0,0,0,10">
+                    <TextBlock Name="ReportContactLabel" DockPanel.Dock="Top" Style="{StaticResource FieldLabel}" Text="Your GitHub @handle or email (optional)"/>
+                    <TextBox Name="ReportContact" MaxLength="120"/>
+                  </DockPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                  <DockPanel Margin="0,0,0,12">
+                    <CheckBox Name="ReportIncludeLogs" DockPanel.Dock="Right" Style="{StaticResource AppleSwitch}" IsChecked="True" VerticalAlignment="Center"/>
+                    <StackPanel Margin="0,0,16,0">
+                      <TextBlock Name="ReportLogsLabel" FontWeight="SemiBold" FontSize="13" Text="Attach sanitized diagnostics"/>
+                      <TextBlock Name="ReportLogsDesc" FontSize="11.5" Foreground="{StaticResource Muted}" Text="Includes recent bridge error logs with local usernames redacted."/>
+                    </StackPanel>
+                  </DockPanel>
+                  <WrapPanel>
+                    <Button Name="SendReportBtn" Style="{StaticResource PrimaryBtn}" Content="Submit Report"/>
+                    <TextBlock Name="ReportStatusText" FontSize="12.5" Foreground="{StaticResource Mint}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                  </WrapPanel>
+                </StackPanel>
+
+                <DockPanel>
+                  <TextBlock Name="ReportBodyLabel" DockPanel.Dock="Top" Style="{StaticResource FieldLabel}" Text="Description (steps to reproduce or idea details)"/>
+                  <TextBox Name="ReportBody" MaxLength="8000" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
+                </DockPanel>
+              </DockPanel>
+            </Border>
           </Grid>
 
           <!-- Status Footer -->
-          <Grid Grid.Row="2" Margin="0,16,0,0">
+          <Grid Grid.Row="3" Margin="0,16,0,0">
             <TextBlock Name="Status" Text="Ready" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
             <ProgressBar Name="Activity" Width="130" Height="4" HorizontalAlignment="Right"
                          IsIndeterminate="False" Visibility="Collapsed" Foreground="{StaticResource Accent}" Background="#171E30" BorderThickness="0"/>

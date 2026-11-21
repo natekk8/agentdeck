@@ -5,6 +5,7 @@ __pycache__/
 *.log
 *.tmp
 *.exe
+dist/
 .venv/
 venv/
 state/

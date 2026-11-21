@@ -39,6 +39,9 @@ from providers import (
     model_name,
     named_models,
 )
+from reporter import collect_diagnostics, resolve_dsn, send_glitchtip_report
+from updater import Updater, check_for_update
+from version import APP_VERSION
 
 ROOT = Path(__file__).resolve().parent.parent
 FRAME = b"AD1 "
@@ -298,6 +301,7 @@ class Deck:
         self.catalogs = {}
         self.pending = set()
         self.catalog_pool = ThreadPoolExecutor(max_workers=2)
+        self.updater = Updater(ROOT, self.directory)
         self.power_armed = False
         self.deadline = None
         self.power_sent = False
@@ -311,6 +315,7 @@ class Deck:
             "language": DEFAULT_LANG,
             "projects_root": str(default_projects_root()),
             "onboarded": False,
+            "glitchtip_dsn": "",
         }
         if self.settings_path.is_file():
             try:
@@ -321,6 +326,7 @@ class Deck:
                     if root:
                         defaults["projects_root"] = root
                     defaults["onboarded"] = bool(loaded.get("onboarded", False))
+                    defaults["glitchtip_dsn"] = str(loaded.get("glitchtip_dsn") or "").strip()
                     return defaults
             except (OSError, ValueError):
                 pass
@@ -638,9 +644,39 @@ class Deck:
 
     def desktop(self, operation, request):
         lang = self.language()
+        if operation == "update_check":
+            return check_for_update()
+        if operation == "update_download":
+            return self.updater.start_download(
+                request.get("asset_url", ""),
+                request.get("asset_name", ""),
+                request.get("version", ""),
+                lang=lang,
+            )
+        if operation == "update_status":
+            return self.updater.snapshot()
+        if operation == "update_apply":
+            return self.updater.apply_update(lang=lang)
+        if operation == "report_submit":
+            with self.lock:
+                dsn = resolve_dsn(self.settings)
+                include_logs = bool(request.get("include_logs"))
+                diag = collect_diagnostics(self.directory) if include_logs else ""
+                if dsn_override := str(request.get("dsn") or "").strip():
+                    dsn = dsn_override
+            return send_glitchtip_report(
+                dsn=dsn,
+                kind=request.get("kind", "bug"),
+                title=request.get("title", ""),
+                description=request.get("description", ""),
+                contact=request.get("contact", ""),
+                diagnostics=diag,
+                lang=lang,
+            )
         with self.lock:
             if operation == "settings_get":
-                return dict(self.settings) | {"autostart": autostart_status()}
+                return dict(self.settings) | {"autostart": autostart_status(), "version": APP_VERSION,
+                                              "glitchtip_configured": bool(resolve_dsn(self.settings))}
             if operation == "settings_save":
                 changed = False
                 if "language" in request:
@@ -656,11 +692,15 @@ class Deck:
                 if "onboarded" in request:
                     self.settings["onboarded"] = bool(request.get("onboarded"))
                     changed = True
+                if "glitchtip_dsn" in request:
+                    self.settings["glitchtip_dsn"] = str(request.get("glitchtip_dsn") or "").strip()
+                    changed = True
                 if "autostart" in request:
                     set_autostart(self.directory, bool(request.get("autostart")))
                 if changed:
                     atomic_json(self.settings_path, self.settings)
-                return dict(self.settings) | {"autostart": autostart_status()}
+                return dict(self.settings) | {"autostart": autostart_status(), "version": APP_VERSION,
+                                              "glitchtip_configured": bool(resolve_dsn(self.settings))}
             if operation == "autostart_get":
                 return {"autostart": autostart_status()}
             if operation == "autostart_set":

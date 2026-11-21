@@ -143,6 +143,13 @@ STRINGS = {
         "plan_ultra": "Ultra",
         "plan_standard": "Standard",
         "plan_active": "Active",
+        "glitchtip_not_configured": "GlitchTip DSN is not configured yet. Add it in Feedback settings or version.py.",
+        "glitchtip_invalid_dsn": "GlitchTip DSN format is invalid (expected https://<key>@<host>/<project_id>).",
+        "report_title_invalid": "Enter a title between 3 and 140 characters.",
+        "report_body_invalid": "Enter a description between 5 and 8,000 characters.",
+        "report_send_failed": "Could not send report to GlitchTip: {detail}",
+        "update_invalid_url": "Installer URL must point to an official GitHub Release over HTTPS.",
+        "update_not_ready": "Installer has not finished downloading yet.",
     },
     "pl": {
         "bridge_running": "Mostek AgentDeck jest już uruchomiony.",
@@ -283,6 +290,13 @@ STRINGS = {
         "plan_ultra": "Ultra",
         "plan_standard": "Standard",
         "plan_active": "Aktywna",
+        "glitchtip_not_configured": "Brak skonfigurowanego DSN GlitchTip. Podaj go w zakładce Zgłoszenia lub w version.py.",
+        "glitchtip_invalid_dsn": "Nieprawidłowy format DSN GlitchTip (wymagane https://<klucz>@<host>/<id_projektu>).",
+        "report_title_invalid": "Wpisz tytuł zgłoszenia (od 3 do 140 znaków).",
+        "report_body_invalid": "Wpisz opis zgłoszenia (od 5 do 8000 znaków).",
+        "report_send_failed": "Nie udało się wysłać zgłoszenia do GlitchTip: {detail}",
+        "update_invalid_url": "Adres instalatora musi wskazywać na oficjalne wydanie GitHub (HTTPS).",
+        "update_not_ready": "Instalator nie został jeszcze pobrany.",
     },
 }
 
