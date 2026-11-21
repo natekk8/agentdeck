@@ -1,0 +1,17 @@
+.pio/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.tmp
+*.exe
+.venv/
+venv/
+state/
+accounts.json
+devices.json
+relay-channels.json
+agentdeck-channels*.json
+desktop.json
+bridge-alive.json
+bridge.lock

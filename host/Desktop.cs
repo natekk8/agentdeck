@@ -1,0 +1,2251 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web.Script.Serialization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using Ellipse = System.Windows.Shapes.Ellipse;
+using System.Windows.Threading;
+using Forms = System.Windows.Forms;
+using Record = System.Collections.Generic.Dictionary<string, object>;
+
+sealed class Desktop
+{
+    readonly Window window;
+    readonly string dataDir;
+    readonly string appDir;
+    readonly string marker;
+    readonly HttpClient client = new HttpClient(new HttpClientHandler { UseProxy = false });
+    readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+    readonly string[] sections = { "Prompts", "Sessions", "Accounts", "Devices", "Wifi", "Remote", "Settings" };
+    readonly SolidColorBrush mint = Brush("#34D399");
+    readonly SolidColorBrush blue = Brush("#60A5FA");
+    readonly SolidColorBrush accent = Brush("#5F8BFF");
+    readonly SolidColorBrush amber = Brush("#FBBF24");
+    readonly SolidColorBrush coral = Brush("#FB7185");
+    readonly SolidColorBrush muted = Brush("#8E9BB3");
+    readonly SolidColorBrush textBrush = Brush("#F4F7FB");
+
+    string lang = "en";
+    string projectFilter = "";
+    string section, deviceSignature, sessionSignature;
+    string pendingScanDevice, pendingWifiDevice, pendingWifiId, wifiSelection;
+    int pendingRevision, operations;
+    int onboardingStep = 1;
+    bool suppressAutostartEvent;
+    DateTime scanUntil, wifiUntil, loginWatchUntil = DateTime.MinValue;
+    int knownCodexCount = -1;
+    bool ticking;
+    Record loadedPrompt = new Record(), linkSnapshot = new Record(), lastDevicesResult = new Record();
+
+    static readonly Dictionary<string, Dictionary<string, string>> Strings = BuildStrings();
+
+    [STAThread]
+    static void Main(string[] args)
+    {
+        bool validate = args.Contains("--validate");
+        try
+        {
+            string data;
+            string layout;
+            ResolvePaths(args, out data, out layout);
+            if (!validate) EnsureBridgeRunning(data, layout);
+            var app = new Application();
+            var desktop = new Desktop(data, layout);
+            if (validate) return;
+            app.Run(desktop.window);
+        }
+        catch (Exception error)
+        {
+            if (validate)
+            {
+                Console.Error.WriteLine(error);
+                Environment.ExitCode = 1;
+            }
+            else MessageBox.Show(error.Message, "AgentDeck", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    static void ResolvePaths(string[] args, out string data, out string layout)
+    {
+        var positional = args.Where(a => !a.StartsWith("--")).ToArray();
+        if (positional.Length >= 2)
+        {
+            data = positional[0];
+            layout = positional[1];
+            return;
+        }
+        var exeDir = Path.GetDirectoryName(typeof(Desktop).Assembly.Location) ?? AppDomain.CurrentDomain.BaseDirectory;
+        var hostLayout = Path.Combine(exeDir, "host", "Window.xaml");
+        if (!File.Exists(hostLayout))
+        {
+            var parent = Path.GetDirectoryName(exeDir);
+            if (!string.IsNullOrEmpty(parent) && File.Exists(Path.Combine(parent, "host", "Window.xaml")))
+                hostLayout = Path.Combine(parent, "host", "Window.xaml");
+        }
+        if (!File.Exists(hostLayout))
+            throw new FileNotFoundException("Window.xaml not found at " + hostLayout);
+        layout = hostLayout;
+        data = Directory.Exists("D:\\")
+            ? "D:\\AgentDeck-data"
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AgentDeck");
+    }
+
+    static void EnsureBridgeRunning(string data, string layout)
+    {
+        Directory.CreateDirectory(data);
+        var markerFile = Path.Combine(data, "desktop.json");
+        var aliveFile = Path.Combine(data, "bridge-alive.json");
+        if (File.Exists(aliveFile) && File.Exists(markerFile))
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer();
+                var aliveDoc = serializer.Deserialize<Record>(File.ReadAllText(aliveFile));
+                var pid = Convert.ToInt32(Get(aliveDoc, "pid"));
+                var proc = Process.GetProcessById(pid);
+                if (!proc.HasExited) return;
+            }
+            catch { }
+        }
+
+        var rootDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(layout)));
+        var cliScript = Path.Combine(rootDir, "host", "agentdeck.py");
+        if (!File.Exists(cliScript))
+            throw new FileNotFoundException("agentdeck.py not found at " + cliScript);
+
+        string pythonExe = FindPythonRunner(rootDir);
+        var start = new ProcessStartInfo
+        {
+            FileName = pythonExe,
+            Arguments = "\"" + cliScript + "\" --data \"" + data + "\" --allow-shutdown",
+            WorkingDirectory = rootDir,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        start.EnvironmentVariables["PYTHONUTF8"] = "1";
+        start.EnvironmentVariables["PYTHONDONTWRITEBYTECODE"] = "1";
+        var child = Process.Start(start);
+
+        for (int i = 0; i < 45; i++)
+        {
+            if (child != null && child.HasExited)
+                throw new InvalidOperationException("AgentDeck bridge failed to start. Check " + Path.Combine(data, "bridge-errors.log"));
+            if (File.Exists(markerFile) && File.Exists(aliveFile)) return;
+            Thread.Sleep(150);
+        }
+    }
+
+    static string FindPythonRunner(string rootDir)
+    {
+        string[] candidates = {
+            @"D:\AgentDeck-tools\venv\Scripts\pythonw.exe",
+            Path.Combine(rootDir, ".venv", "Scripts", "pythonw.exe"),
+            @"D:\AgentDeck-tools\venv\Scripts\python.exe",
+            Path.Combine(rootDir, ".venv", "Scripts", "python.exe"),
+            "pythonw.exe",
+            "python.exe"
+        };
+        foreach (var path in candidates)
+        {
+            if (!Path.IsPathRooted(path) || File.Exists(path)) return path;
+        }
+        return "python.exe";
+    }
+
+    Desktop(string data, string layout)
+    {
+        dataDir = data;
+        appDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(layout)));
+        marker = Path.Combine(data, "desktop.json");
+        using (var file = File.OpenRead(layout)) window = (Window)XamlReader.Load(file);
+        client.Timeout = TimeSpan.FromSeconds(25);
+        LoadBrandLogo();
+
+        C<ComboBox>("Provider").SelectedIndex = 0;
+        C<ComboBox>("LanguagePicker").SelectedIndex = 0;
+
+        // Custom Apple Window Chrome controls
+        C<Button>("WinMinBtn").Click += (s, e) => { window.WindowState = WindowState.Minimized; };
+        C<Button>("WinMaxBtn").Click += (s, e) =>
+        {
+            window.WindowState = window.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        };
+        C<Button>("WinCloseBtn").Click += (s, e) => window.Close();
+        window.StateChanged += (s, e) =>
+        {
+            var max = window.WindowState == WindowState.Maximized;
+            var box = C<Border>("MainContainer");
+            box.CornerRadius = new CornerRadius(max ? 0 : 12);
+            box.BorderThickness = new Thickness(max ? 0 : 1);
+            window.Padding = new Thickness(max ? 6 : 0);
+        };
+
+        foreach (var name in sections)
+        {
+            var page = name;
+            C<Button>("Nav" + name).Click += (sender, e) => Navigate(page);
+        }
+
+        Button("FilterAll", () => SetProjectFilter(""));
+        Button("FilterAgy", () => SetProjectFilter("agy"));
+        Button("FilterCodex", () => SetProjectFilter("codex"));
+
+        C<ListBox>("ProjectList").SelectionChanged += async (sender, e) => await ReadPrompts();
+        C<ListBox>("PromptList").SelectionChanged += (sender, e) =>
+        {
+            var prompt = Selection("PromptList");
+            if (prompt.Count != 0) FillPrompt(prompt);
+        };
+        C<ListBox>("SessionList").SelectionChanged += async (sender, e) => await ReadSession();
+        C<Button>("OpenConversation").Click += async (sender, e) =>
+        {
+            var id = Str(Selected("SessionList"), "id");
+            C<Button>("OpenConversation").IsEnabled = false;
+            await Work(L("opening_conv"), async () =>
+            {
+                await Api("open_conversation", "job", id);
+                Note(L("conv_opened"));
+            });
+            if (id == Str(Selected("SessionList"), "id")) C<Button>("OpenConversation").IsEnabled = true;
+        };
+        Button("OpenAnswer", () =>
+        {
+            var path = C<Button>("OpenAnswer").Tag as string;
+            if (string.IsNullOrEmpty(path)) return;
+            try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+            catch (Exception error) { Note(error.Message, true); }
+        });
+
+        C<ListBox>("CodexAccountList").AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(OnCodexListButtonClick));
+
+        C<ListBox>("DeviceList").SelectionChanged += (sender, e) =>
+        {
+            var row = Selection("DeviceList");
+            if (Str(row, "address").Length > 0) C<TextBox>("DeviceAddress").Text = Str(row, "address");
+        };
+        C<ComboBox>("WifiDevice").SelectionChanged += (sender, e) =>
+        {
+            var device = DeviceId();
+            if (device.Length == 0 || device == wifiSelection) return;
+            wifiSelection = device;
+            C<ListBox>("NetworkList").ItemsSource = null;
+            pendingScanDevice = pendingWifiDevice = null;
+        };
+        C<ListBox>("NetworkList").SelectionChanged += (sender, e) =>
+        {
+            var selected = Selection("NetworkList");
+            C<TextBlock>("NetworkName").Text = selected.Count == 0 ? L("select_network") : Str(selected, "ssid");
+            C<PasswordBox>("WifiPassword").Clear();
+            C<PasswordBox>("WifiPassword").IsEnabled = Flag(selected, "secured");
+        };
+
+        Button("NewPrompt", () => { C<ListBox>("PromptList").SelectedIndex = -1; FillPrompt(new Record()); });
+        Action("SavePrompt", "saving_prompt", SavePrompt);
+        Action("DeletePrompt", "deleting_prompt", DeletePrompt);
+        Action("NewProjectBtn", "creating_project", NewProject);
+        Action("RenameProjectBtn", "renaming_project", RenameProject);
+        Action("AddProject", "select_project_folder", AddProject);
+        Action("BindProject", "bind_agy_title", BindProject);
+        Action("ShowProject", "sending_project", ShowProject);
+        Button("UseProject", UseStickProject);
+
+        Action("LoginCodexAccount", "launching_login", LoginCodexAccount);
+        Action("RefreshAccountsBtn", "loading_accounts", () => RefreshAccounts(false));
+        Action("RefreshAgyBtn", "loading_accounts", () => RefreshAccounts(true));
+
+        Action("ShowCode", "opening_pairing", async () =>
+        {
+            await Api("show_pairing");
+            Note(L("enter_stick_code"));
+        });
+        Action("PairUsb", "pairing_usb", () => Pair("pair_usb", false));
+        Action("PairUsbCode", "checking_usb_code", () => Pair("pair_usb", true));
+        Action("PairLan", "checking_wifi_code", () => Pair("pair_lan", true));
+        Action("FindDevices", "scanning_lan", Discover);
+        Action("ForgetDevice", "removing_pairing", Forget);
+        Action("ScanWifi", "scanning_wifi", ScanWifi);
+        Action("JoinWifi", "sending_wifi", JoinWifi);
+
+        Action("CodexRcStart", "rc_working", () => RemoteControlAction("codex", "start"));
+        Action("CodexRcStop", "rc_working", () => RemoteControlAction("codex", "stop"));
+        Action("CodexRcPair", "rc_working", () => RemoteControlAction("codex", "pair"));
+        Action("AgyRcStart", "rc_working", () => RemoteControlAction("agy", "start"));
+        Action("AgyRcStop", "rc_working", () => RemoteControlAction("agy", "stop"));
+        Action("RefreshRemoteBtn", "rc_working", RefreshRemoteControl);
+
+        Action("StartLocalRelay", "starting_local_relay", StartLocalRelay);
+        Action("StopLocalRelay", "stopping_local_relay", StopLocalRelay);
+        Action("SaveRelay", "saving_relay", () => SaveRelay(C<TextBox>("RelayAddress").Text));
+        Action("ClearRelay", "clearing_relay", () => SaveRelay(""));
+        Action("SyncRelay", "syncing_stick", async () =>
+        {
+            await Api("relay_sync", "device", DeviceId());
+            Note(L("relay_synced"));
+        });
+        Action("ExportChannels", "exporting_channels", ExportChannels);
+        Action("TestRelay", "testing_relay", TestRelay);
+
+        Action("SaveLanguageBtn", "applying_language", ApplySelectedLanguage);
+        Button("BrowseProjectsRoot", BrowseProjectsRoot);
+        Action("SaveProjectsRoot", "saving_settings", SaveProjectsRoot);
+        Button("OpenWizardBtn", () => ShowOnboarding(1));
+        Button("OpenDataFolderBtn", () => OpenFolder(dataDir));
+        Button("OpenAppFolderBtn", () => OpenFolder(appDir));
+
+        C<CheckBox>("AutostartToggle").Checked += async (s, e) => await OnAutostartToggled(true);
+        C<CheckBox>("AutostartToggle").Unchecked += async (s, e) => await OnAutostartToggled(false);
+
+        // Onboarding controls
+        C<Button>("OnbLangEnBtn").Click += async (s, e) => await PickOnboardingLanguage("en");
+        C<Button>("OnbLangPlBtn").Click += async (s, e) => await PickOnboardingLanguage("pl");
+        Button("OnbBackBtn", () => { if (onboardingStep > 1) ShowOnboarding(onboardingStep - 1); });
+        Action("OnbPairUsbBtn", "pairing_usb", OnboardingPairUsb);
+        C<Button>("OnbNextBtn").Click += async (s, e) => await AdvanceOnboarding();
+        C<Button>("OnbSkipBtn").Click += async (s, e) => await FinishOnboarding();
+
+        ApplyLanguage();
+        UpdateFilterButtons();
+
+        window.Activated += async (s, e) =>
+        {
+            if (section == "Accounts" || DateTime.UtcNow < loginWatchUntil)
+            {
+                try { await RefreshAccounts(false); } catch { }
+            }
+        };
+
+        window.Loaded += async (sender, e) =>
+        {
+            AnimateEntrance(C<FrameworkElement>("MainContainer"));
+            ApplyLanguage();
+            UpdateFilterButtons();
+            Navigate("Prompts");
+            await Work(L("loading_projects"), async () =>
+            {
+                var settings = await Api("settings_get");
+                lang = Str(settings, "language") == "pl" ? "pl" : "en";
+                C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
+                C<TextBox>("ProjectsRootInput").Text = Str(settings, "projects_root");
+                UpdateAutostartUi(Flag(settings, "autostart"));
+                ApplyLanguage();
+                await ReadProjects("");
+                var relay = await Api("relay_get");
+                C<TextBox>("RelayAddress").Text = Str(relay, "endpoint");
+                UpdateLocalRelayBadge(Obj(relay, "local_relay"));
+                if (!Flag(settings, "onboarded")) ShowOnboarding(1);
+                Note(L("ready"));
+            });
+            timer.Tick += async (s2, e2) => await RefreshState();
+            timer.Start();
+            await RefreshState();
+        };
+        window.Closed += (sender, e) => { timer.Stop(); client.Dispose(); };
+    }
+
+    void AnimateEntrance(FrameworkElement element)
+    {
+        if (!SystemParameters.ClientAreaAnimation || element == null) return;
+        var duration = TimeSpan.FromMilliseconds(220);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var transform = new TranslateTransform();
+        element.RenderTransform = transform;
+        element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+        transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, duration) { EasingFunction = ease });
+    }
+
+    void LoadBrandLogo()
+    {
+        string[] candidates = {
+            Path.Combine(appDir, "assets", "logo.png"),
+            Path.Combine(appDir, "logo.png"),
+            Path.Combine(dataDir, "logo.png")
+        };
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(path, UriKind.Absolute);
+                bmp.EndInit();
+                C<Image>("BrandLogo").Source = bmp;
+                C<Image>("BrandLogo").Visibility = Visibility.Visible;
+                C<FrameworkElement>("BrandFallback").Visibility = Visibility.Collapsed;
+                return;
+            }
+            catch { }
+        }
+    }
+
+    void OpenFolder(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception error) { Note(error.Message, true); }
+    }
+
+    T C<T>(string name) where T : FrameworkElement { return (T)window.FindName(name); }
+    static SolidColorBrush Brush(string value) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(value)); }
+    static object Get(Record row, string key) { object value; return row != null && row.TryGetValue(key, out value) ? value : null; }
+    static string Str(Record row, string key) { return Convert.ToString(Get(row, key)) ?? ""; }
+    static bool Flag(Record row, string key) { return Get(row, key) is bool && (bool)Get(row, key); }
+    static int IntVal(Record row, string key, int fallback = -1)
+    {
+        var val = Get(row, key);
+        if (val == null) return fallback;
+        try { return Convert.ToInt32(val); }
+        catch { return fallback; }
+    }
+    static Record Obj(Record row, string key) { return Get(row, key) as Record ?? new Record(); }
+    static object[] Items(Record row, string key)
+    {
+        var items = Get(row, key) as IEnumerable;
+        return items == null ? new object[0] : items.Cast<object>().ToArray();
+    }
+    static Record[] Rows(Record row, string key) { return Items(row, key).OfType<Record>().ToArray(); }
+    static string Display(Record row, string key, string fallback) { var value = Str(row, key); return value.Length > 0 ? value : fallback; }
+
+    string L(string key)
+    {
+        Dictionary<string, string> table;
+        string val;
+        if (Strings.TryGetValue(lang, out table) && table.TryGetValue(key, out val)) return val;
+        if (Strings["en"].TryGetValue(key, out val)) return val;
+        return key;
+    }
+
+    Record Selection(string name)
+    {
+        var selector = (Selector)window.FindName(name);
+        var item = selector.SelectedItem as Choice;
+        return item == null ? new Record() : item.Value;
+    }
+    Record Selected(string name) { return Selection(name); }
+
+    sealed class Choice
+    {
+        public readonly Record Value;
+        public string Id { get; private set; }
+        public string Title { get; private set; }
+        public string Path { get; private set; }
+        public string Badge { get; private set; }
+        public SolidColorBrush BadgeBg { get; private set; }
+        public SolidColorBrush BadgeFg { get; private set; }
+        public Visibility BadgeVisibility { get { return string.IsNullOrEmpty(Badge) ? Visibility.Collapsed : Visibility.Visible; } }
+        public string ActionLabel { get; private set; }
+        public Visibility ActionVisibility { get { return string.IsNullOrEmpty(ActionLabel) ? Visibility.Collapsed : Visibility.Visible; } }
+
+        public Choice(Record value, string title, string path, string badge, SolidColorBrush bg, SolidColorBrush fg, string actionLabel = "")
+        {
+            Value = value;
+            Id = Str(value, "id");
+            Title = title;
+            Path = path;
+            Badge = badge ?? "";
+            BadgeBg = bg ?? Brush("#171E30");
+            BadgeFg = fg ?? Brush("#8E9BB3");
+            ActionLabel = actionLabel ?? "";
+        }
+        public override string ToString() { return Title; }
+    }
+
+    void FillChoices(string name, IEnumerable<Record> rows, Func<Record, Choice> mapper, string id = "")
+    {
+        var selector = (Selector)window.FindName(name);
+        var choices = rows.Select(mapper).ToArray();
+        selector.ItemsSource = choices;
+        if (id.Length > 0) selector.SelectedItem = choices.FirstOrDefault(row => Str(row.Value, "id") == id);
+    }
+
+    void Fill(string name, IEnumerable<Record> rows, Func<Record, string> title, string id = "")
+    {
+        FillChoices(name, rows, row => new Choice(row, title(row), Str(row, "path"), "", null, null), id);
+    }
+
+    async Task<Record> Api(string op, params object[] fields)
+    {
+        var api = new JavaScriptSerializer { MaxJsonLength = 1000000 };
+        var data = new Record { { "op", op } };
+        for (int i = 0; i < fields.Length; i += 2) data.Add((string)fields[i], fields[i + 1]);
+        var settings = api.Deserialize<Record>(File.ReadAllText(marker));
+        var key = ProtectedData.Unprotect(Convert.FromBase64String(Str(settings, "token")), null, DataProtectionScope.CurrentUser);
+        using (var request = new HttpRequestMessage(HttpMethod.Post, "http://127.0.0.1:" + Str(settings, "port") + "/desktop"))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Encoding.UTF8.GetString(key));
+            request.Content = new StringContent(api.Serialize(data), Encoding.UTF8, "application/json");
+            using (var reply = await client.SendAsync(request))
+            {
+                reply.EnsureSuccessStatusCode();
+                var result = api.Deserialize<Record>(await reply.Content.ReadAsStringAsync());
+                if (!Flag(result, "ok")) throw new InvalidOperationException(Str(result, "error"));
+                return result;
+            }
+        }
+    }
+
+    void Navigate(string name)
+    {
+        section = name;
+        foreach (var page in sections)
+        {
+            var button = C<Button>("Nav" + page);
+            var active = page == name;
+            button.Background = active ? Brush("#172444") : Brushes.Transparent;
+            button.BorderBrush = active ? Brush("#33529E") : Brushes.Transparent;
+            C<TextBlock>("Nav" + page + "Text").Foreground = active ? textBrush : muted;
+            C<FrameworkElement>(page).Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        }
+        UpdateHeading();
+        var entry = C<FrameworkElement>(name);
+        if (SystemParameters.ClientAreaAnimation && entry != null)
+        {
+            var time = TimeSpan.FromMilliseconds(220);
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var transform = new TranslateTransform();
+            entry.RenderTransform = transform;
+            entry.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.25, 1, time) { EasingFunction = ease });
+            transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, 0, time) { EasingFunction = ease });
+        }
+        if (name == "Accounts") { var t = RefreshAccounts(false); }
+        else if (name == "Remote") { var t = RefreshRemoteControl(); }
+    }
+
+    void UpdateHeading()
+    {
+        if (string.IsNullOrEmpty(section)) return;
+        C<TextBlock>("Heading").Text = C<TextBlock>("Nav" + section + "Text").Text;
+        C<TextBlock>("SubHeading").Text = L("sub_" + section.ToLowerInvariant());
+    }
+
+    void Note(string text, bool error = false)
+    {
+        C<TextBlock>("Status").Text = text;
+        C<TextBlock>("Status").Foreground = error ? coral : muted;
+    }
+
+    async Task Work(string text, Func<Task> work)
+    {
+        operations++;
+        C<ProgressBar>("Activity").Visibility = Visibility.Visible;
+        C<ProgressBar>("Activity").IsIndeterminate = SystemParameters.ClientAreaAnimation;
+        Note(text);
+        try { await work(); }
+        catch (Exception error) { Note(error.Message, true); }
+        finally { if (--operations == 0) C<ProgressBar>("Activity").Visibility = Visibility.Collapsed; }
+    }
+
+    void Button(string name, Action work) { C<Button>(name).Click += (sender, e) => work(); }
+    void Action(string name, string textKey, Func<Task> work)
+    {
+        C<Button>(name).Click += async (sender, e) =>
+        {
+            var button = (Button)sender;
+            button.IsEnabled = false;
+            try { await Work(L(textKey), work); }
+            finally { button.IsEnabled = true; }
+        };
+    }
+
+    string ProjectId() { return Str(Selected("ProjectList"), "id"); }
+    string DeviceId() { return Str(Selected("WifiDevice"), "id"); }
+    Record Snapshot() { return linkSnapshot; }
+    string Scope() { return Convert.ToString(((ComboBoxItem)C<ComboBox>("Provider").SelectedItem).Tag); }
+
+    async void SetProjectFilter(string filter)
+    {
+        projectFilter = filter;
+        UpdateFilterButtons();
+        await Work(L("loading_projects"), () => ReadProjects(ProjectId()));
+    }
+
+    void UpdateFilterButtons()
+    {
+        SetPillState(C<Button>("FilterAll"), projectFilter == "");
+        SetPillState(C<Button>("FilterAgy"), projectFilter == "agy");
+        SetPillState(C<Button>("FilterCodex"), projectFilter == "codex");
+    }
+
+    void SetPillState(Button btn, bool active)
+    {
+        btn.Background = active ? Brush("#172444") : Brush("#171E30");
+        btn.BorderBrush = active ? Brush("#4162B5") : Brush("#283552");
+        btn.Foreground = active ? textBrush : muted;
+    }
+
+    async Task ReadProjects(string selected)
+    {
+        var result = await Api("projects", "provider", projectFilter);
+        var list = new List<Record>();
+        list.Add(new Record
+        {
+            { "id", "*" },
+            { "label", L("global_projects_title") },
+            { "path", L("global_projects_sub") },
+            { "is_global", true }
+        });
+        list.AddRange(Rows(result, "items"));
+        FillChoices("ProjectList", list, row =>
+        {
+            if (Flag(row, "is_global"))
+                return new Choice(row, Str(row, "label"), Str(row, "path"), "GLOBAL", Brush("#172444"), accent);
+            var provs = Items(row, "providers").Select(p => Convert.ToString(p)).ToArray();
+            string badge = Flag(row, "created_on_stick") ? "NEW" :
+                (provs.Contains("codex") && provs.Contains("agy")) ? "BOTH" :
+                provs.Contains("codex") ? "CODEX" :
+                provs.Contains("agy") ? "AGY" : "";
+            var bg = badge == "AGY" ? Brush("#132642") : badge == "CODEX" ? Brush("#0F2D24") :
+                badge == "NEW" ? Brush("#332710") : Brush("#1C2438");
+            var fg = badge == "AGY" ? blue : badge == "CODEX" ? mint :
+                badge == "NEW" ? amber : muted;
+            return new Choice(row, Str(row, "label"), Str(row, "path"), badge, bg, fg);
+        }, selected);
+        if (C<ListBox>("ProjectList").SelectedIndex < 0 && C<ListBox>("ProjectList").Items.Count > 0)
+            C<ListBox>("ProjectList").SelectedIndex = 0;
+    }
+
+    sealed class PromptTemplate
+    {
+        public string Label;
+        public string Description;
+        public string Text;
+        public PromptTemplate(string label, string description, string text)
+        {
+            Label = label;
+            Description = description;
+            Text = text;
+        }
+    }
+
+    static readonly PromptTemplate[] TemplatesEn = new PromptTemplate[]
+    {
+        new PromptTemplate(
+            "Architecture Audit",
+            "Maps project structure, entry points, dependencies, and technical debt.",
+            "Inspect the repository structure, entry points, and core modules. Summarize the architecture, key data flows, dependencies, and the top 3 structural improvements to prioritize."
+        ),
+        new PromptTemplate(
+            "Bug & Risk Hunter",
+            "Hunts edge cases, race conditions, security flaws, and silent failures.",
+            "Audit the codebase for bugs, edge cases, race conditions, input validation gaps, and error handling issues. List concrete file paths, root causes, and recommended fixes."
+        ),
+        new PromptTemplate(
+            "Feature Blueprint",
+            "Designs and builds a new feature end-to-end with tests and verification.",
+            "Analyze the codebase conventions and implement the requested feature cleanly across all required modules. Keep changes modular, avoid duplication, and verify with tests or build checks."
+        ),
+        new PromptTemplate(
+            "Diff Code Review",
+            "Reviews recent changes for regressions, cleanliness, and missing tests.",
+            "Review the most recently modified files and git changes. Check for regressions, subtle logic bugs, naming consistency, and missing test coverage."
+        ),
+        new PromptTemplate(
+            "Performance Pass",
+            "Finds hot paths, redundant I/O, slow queries, and UI/memory bottlenecks.",
+            "Profile the code statically for performance bottlenecks, unnecessary allocations, blocking I/O, and N+1 loops. Propose or apply safe high-impact optimizations."
+        ),
+        new PromptTemplate(
+            "Test Coverage Check",
+            "Inspects test setup, finds untested paths, and writes missing unit tests.",
+            "Check the test suite and build pipeline. Identify critical untested code paths and edge cases, then add reliable unit tests to cover them."
+        )
+    };
+
+    static readonly PromptTemplate[] TemplatesPl = new PromptTemplate[]
+    {
+        new PromptTemplate(
+            "Przegląd architektury",
+            "Mapuje strukturę projektu, główne punkty wejścia, zależności i dług techniczny.",
+            "Przeanalizuj strukturę repozytorium, punkty wejścia i główne moduły. Podsumuj architekturę, przepływ danych, kluczowe zależności oraz 3 najważniejsze usprawnienia techniczne."
+        ),
+        new PromptTemplate(
+            "Analiza błędów i ryzyk",
+            "Wyszukuje błędy brzegowe, wyścigi, luki bezpieczeństwa i ciche wyjątki.",
+            "Przeszukaj kod pod kątem błędów logicznych, przypadków brzegowych, wyścigów, brakującej walidacji oraz problemów z obsługą błędów. Wskaż konkretne pliki, przyczyny i poprawki."
+        ),
+        new PromptTemplate(
+            "Projekt i wdrożenie funkcji",
+            "Projektuje oraz wdraża nową funkcję zgodnie z konwencjami projektu i testami.",
+            "Zapoznaj się z architekturą i konwencjami projektu, a następnie zaprojektuj i wdróż spójnie nową funkcjonalność. Zadbaj o czysty podział kodu i zweryfikuj wynik testami lub kompilacją."
+        ),
+        new PromptTemplate(
+            "Przegląd zmian (Code Review)",
+            "Sprawdza ostatnie modyfikacje pod kątem regresji, czytelności i testów.",
+            "Przejrzyj ostatnio zmodyfikowane pliki oraz zmiany w Git. Wskaż potencjalne regresje, ukryte błędy, niespójności oraz brakujące testy."
+        ),
+        new PromptTemplate(
+            "Optymalizacja wydajności",
+            "Wykrywa wąskie gardła, blokujące operacje I/O, wolne pętle i zużycie pamięci.",
+            "Przeanalizuj kod pod kątem wąskich gardeł wydajnościowych, zbędnych alokacji, blokujących operacji sieciowych/dyskowych oraz nadmiarowych zapytań. Zaproponuj lub wdróż bezpieczne optymalizacje."
+        ),
+        new PromptTemplate(
+            "Audyt testów i jakości",
+            "Ocenia pokrycie testami, znajduje luki i dopisuje brakujące testy jednostkowe.",
+            "Sprawdź konfigurację testów i budowania projektu. Wskaż najważniejsze nieprzetestowane ścieżki oraz dopisz niezawodne testy jednostkowe dla kluczowych przypadków."
+        )
+    };
+
+    void PopulateTemplateChips()
+    {
+        var panel = C<WrapPanel>("TemplateChips");
+        panel.Children.Clear();
+        var list = lang == "pl" ? TemplatesPl : TemplatesEn;
+        foreach (var tpl in list)
+        {
+            var captured = tpl;
+            var btn = new Button
+            {
+                Content = captured.Label,
+                ToolTip = captured.Description,
+                Style = (Style)window.FindResource("PillBtn"),
+                Margin = new Thickness(0, 0, 6, 6)
+            };
+            btn.Click += (s, e) =>
+            {
+                C<ListBox>("PromptList").SelectedIndex = -1;
+                loadedPrompt = new Record();
+                C<TextBox>("PromptTitle").Text = captured.Label;
+                C<TextBox>("PromptDescription").Text = captured.Description;
+                C<TextBox>("PromptText").Text = captured.Text;
+                Note(captured.Description);
+            };
+            panel.Children.Add(btn);
+        }
+    }
+
+    async Task ReadPrompts(string selected = "")
+    {
+        var project = Selected("ProjectList");
+        var id = Str(project, "id");
+        var isGlobal = id == "*";
+        C<TextBlock>("ProjectHeading").Text = Display(project, "label", L("select_project"));
+        C<TextBlock>("ProjectSubPath").Text = Str(project, "path");
+        C<TextBlock>("GlobalPromptHint").Text = isGlobal ? L("global_hint") : "";
+        C<Button>("RenameProjectBtn").IsEnabled = !isGlobal && id.Length > 0;
+        C<Button>("ShowProject").IsEnabled = !isGlobal && id.Length > 0;
+        C<Button>("BindProject").IsEnabled = !isGlobal && id.Length > 0;
+        try
+        {
+            var result = id.Length == 0 ? new Record() : await Api("prompts", "project", id);
+            if (id != ProjectId()) return;
+            FillPrompt(new Record());
+            FillChoices("PromptList", Rows(result, "items").OrderBy(row => Str(row, "label")), row =>
+            {
+                var p = Str(row, "provider");
+                var tag = p == "codex" ? "Codex" : p == "agy" ? "AGY" : L("both_short");
+                return new Choice(row, Str(row, "label"), Str(row, "description"), tag,
+                    p == "codex" ? Brush("#0F2D24") : p == "agy" ? Brush("#132642") : Brush("#171E30"),
+                    p == "codex" ? mint : p == "agy" ? blue : muted);
+            }, selected);
+        }
+        catch (Exception error) { Note(error.Message, true); }
+    }
+
+    void FillPrompt(Record row)
+    {
+        loadedPrompt = row;
+        C<TextBox>("PromptTitle").Text = Str(row, "label");
+        C<TextBox>("PromptDescription").Text = Str(row, "description");
+        C<TextBox>("PromptText").Text = Str(row, "text");
+        C<ComboBox>("Provider").SelectedIndex = Str(row, "provider") == "codex" ? 1 : Str(row, "provider") == "agy" ? 2 : 0;
+    }
+
+    async Task SavePrompt()
+    {
+        var current = ProjectId();
+        if (current.Length == 0) throw new InvalidOperationException(L("select_project_first"));
+        var result = await Api("save_prompt", "project", current, "id", Str(loadedPrompt, "id"),
+            "label", C<TextBox>("PromptTitle").Text,
+            "description", C<TextBox>("PromptDescription").Text,
+            "text", C<TextBox>("PromptText").Text,
+            "provider", Scope());
+        if (current == ProjectId()) await ReadPrompts(Str(Obj(result, "item"), "id"));
+        Note(L("prompt_saved"));
+    }
+
+    async Task DeletePrompt()
+    {
+        var id = Str(loadedPrompt, "id");
+        if (id.Length == 0) { Note(L("select_saved_prompt")); return; }
+        if (MessageBox.Show(window, L("confirm_delete_prompt"), "AgentDeck",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await Api("delete_prompt", "project", ProjectId(), "id", id);
+        await ReadPrompts();
+        Note(L("prompt_deleted"));
+    }
+
+    Window DarkModal(string title, double width)
+    {
+        return new Window
+        {
+            Owner = window,
+            Title = title,
+            Width = width,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = Brush("#111623"),
+            Foreground = textBrush,
+            FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI"),
+            FontSize = 13.5
+        };
+    }
+
+    async Task NewProject()
+    {
+        var dialog = DarkModal(L("new_project_title"), 440);
+        var panel = new StackPanel { Margin = new Thickness(22) };
+        var label = new TextBlock { Text = L("new_project_name_hint"), Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+        var input = new TextBox { MaxLength = 64, Background = Brush("#090D16"), Foreground = textBrush, BorderBrush = Brush("#283552"), Padding = new Thickness(11, 9, 11, 9), Margin = new Thickness(0, 0, 0, 14) };
+        var ideLabel = new TextBlock { Text = L("new_project_ide"), Foreground = muted, Margin = new Thickness(0, 0, 0, 6) };
+        var ideBox = new ComboBox { Margin = new Thickness(0, 0, 0, 18) };
+        ideBox.Items.Add(new ComboBoxItem { Content = L("both_ides"), Tag = "" });
+        ideBox.Items.Add(new ComboBoxItem { Content = "Codex", Tag = "codex" });
+        ideBox.Items.Add(new ComboBoxItem { Content = "Antigravity", Tag = "agy" });
+        ideBox.SelectedIndex = projectFilter == "codex" ? 1 : projectFilter == "agy" ? 2 : 0;
+
+        var rowBtns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var cancel = new Button { Content = L("cancel"), Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(15, 8, 15, 8) };
+        var create = new Button { Content = L("create"), IsDefault = true, Style = (Style)window.FindResource("PrimaryBtn"), Margin = new Thickness(0) };
+        cancel.Click += (s, e) => dialog.DialogResult = false;
+        create.Click += (s, e) => dialog.DialogResult = true;
+        rowBtns.Children.Add(cancel);
+        rowBtns.Children.Add(create);
+
+        panel.Children.Add(label);
+        panel.Children.Add(input);
+        panel.Children.Add(ideLabel);
+        panel.Children.Add(ideBox);
+        panel.Children.Add(rowBtns);
+        dialog.Content = panel;
+        if (dialog.ShowDialog() != true) { Note(L("ready")); return; }
+
+        var chosenProv = Convert.ToString(((ComboBoxItem)ideBox.SelectedItem).Tag);
+        var res = await Api("create_project", "name", input.Text.Trim(), "provider", chosenProv);
+        await ReadProjects(Str(res, "id"));
+        Note(string.Format(L("project_created"), Str(res, "label")));
+    }
+
+    async Task RenameProject()
+    {
+        var row = Selected("ProjectList");
+        var id = Str(row, "id");
+        if (id.Length == 0 || id == "*") { Note(L("select_folder_rename"), true); return; }
+
+        var dialog = DarkModal(L("rename_project_title"), 420);
+        var panel = new StackPanel { Margin = new Thickness(22) };
+        var label = new TextBlock { Text = L("rename_project_label"), Foreground = muted, Margin = new Thickness(0, 0, 0, 8) };
+        var input = new TextBox { Text = Str(row, "label"), MaxLength = 64, Background = Brush("#090D16"), Foreground = textBrush, BorderBrush = Brush("#283552"), Padding = new Thickness(11, 9, 11, 9), Margin = new Thickness(0, 0, 0, 16) };
+        input.SelectAll();
+        var save = new Button { Content = L("save"), IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right, Style = (Style)window.FindResource("PrimaryBtn"), Margin = new Thickness(0) };
+        save.Click += (s, e) => dialog.DialogResult = true;
+        panel.Children.Add(label);
+        panel.Children.Add(input);
+        panel.Children.Add(save);
+        dialog.Content = panel;
+        if (dialog.ShowDialog() != true) { Note(L("ready")); return; }
+
+        var res = await Api("rename_project", "project", id, "name", input.Text.Trim());
+        await ReadProjects(Str(res, "id"));
+        Note(string.Format(L("project_renamed"), Str(res, "label")));
+    }
+
+    async Task AddProject()
+    {
+        using (var picker = new Forms.FolderBrowserDialog { Description = L("select_project_folder") })
+        {
+            if (picker.ShowDialog() != Forms.DialogResult.OK) { Note(L("ready")); return; }
+            var result = await Api("add_project", "path", picker.SelectedPath, "provider", projectFilter);
+            await ReadProjects(Str(result, "id"));
+            Note(L("folder_saved"));
+        }
+    }
+
+    async Task BindProject()
+    {
+        var row = Selected("ProjectList");
+        var id = Str(row, "id");
+        if (row.Count == 0 || id == "*") throw new InvalidOperationException(L("select_project_first"));
+        var dialog = DarkModal(L("bind_agy_title"), 420);
+        var content = new StackPanel { Margin = new Thickness(22) };
+        var input = new TextBox { Text = Str(row, "agy_project"), MaxLength = 120, Margin = new Thickness(0, 8, 0, 16), Background = Brush("#090D16"), Foreground = textBrush, BorderBrush = Brush("#283552"), Padding = new Thickness(11, 9, 11, 9) };
+        var save = new Button { Content = L("save"), IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right, Style = (Style)window.FindResource("PrimaryBtn"), Margin = new Thickness(0) };
+        save.Click += (sender, e) => dialog.DialogResult = true;
+        content.Children.Add(new TextBlock { Text = L("agy_project_id_label"), Foreground = muted });
+        content.Children.Add(input);
+        content.Children.Add(save);
+        dialog.Content = content;
+        if (dialog.ShowDialog() != true) { Note(L("ready")); return; }
+        await Api("add_project", "path", Str(row, "path"), "agy_project", input.Text);
+        await ReadProjects(id);
+        Note(L("binding_saved"));
+    }
+
+    async Task ShowProject()
+    {
+        var id = ProjectId();
+        if (id == "*" || id.Length == 0) throw new InvalidOperationException(L("select_project_first"));
+        var provider = Scope();
+        await Api("show_project", "project", id, "device", DeviceId(),
+            "provider", provider.Length > 0 ? provider : Display(Snapshot(), "provider", "codex"));
+        Note(L("project_opened_stick"));
+    }
+
+    async void UseStickProject()
+    {
+        var target = Str(Snapshot(), "project");
+        if (target.Length == 0) { Note(L("select_project_on_stick")); return; }
+        if (target != ProjectId() && (C<TextBox>("PromptTitle").Text != Str(loadedPrompt, "label") ||
+            C<TextBox>("PromptDescription").Text != Str(loadedPrompt, "description") ||
+            C<TextBox>("PromptText").Text != Str(loadedPrompt, "text") || Scope() != Str(loadedPrompt, "provider")) &&
+            MessageBox.Show(window, L("confirm_discard_prompt"), "AgentDeck",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        projectFilter = "";
+        UpdateFilterButtons();
+        Navigate("Prompts");
+        if (target != ProjectId()) await Work(L("opening_stick_project"), () => ReadProjects(target));
+        Note(L("project_synced"));
+    }
+
+    async void OnCodexListButtonClick(object sender, RoutedEventArgs e)
+    {
+        var btn = e.OriginalSource as Button;
+        if (btn == null) return;
+        var kind = btn.Tag as string;
+        var id = btn.CommandParameter as string;
+        if (string.IsNullOrEmpty(kind) || string.IsNullOrEmpty(id)) return;
+        e.Handled = true;
+        if (kind == "switch")
+        {
+            await Work(L("switching_account"), async () =>
+            {
+                var res = await Api("switch_account", "provider", "codex", "account", id);
+                await RefreshAccounts(false);
+                Note(Display(res, "message", L("account_switched")));
+            });
+        }
+        else if (kind == "delete")
+        {
+            await Work(L("removing_account"), async () =>
+            {
+                await Api("delete_account", "provider", "codex", "account", id);
+                await RefreshAccounts(false);
+                Note(L("account_removed"));
+            });
+        }
+    }
+
+    async Task RefreshAccounts(bool force)
+    {
+        var res = await Api("accounts", "force", force);
+        var codex = Obj(res, "codex");
+        var cActive = Obj(codex, "active");
+        var cEmail = Str(cActive, "email");
+        var cPlan = Str(cActive, "plan");
+        C<TextBlock>("CodexActiveText").Text = cEmail.Length > 0
+            ? (cPlan.Length > 0 ? cEmail + " · " + cPlan.ToUpperInvariant() : cEmail)
+            : L("not_signed_in");
+        var cProfiles = Rows(codex, "profiles");
+        if (knownCodexCount >= 0 && cProfiles.Length > knownCodexCount && DateTime.UtcNow < loginWatchUntil)
+            loginWatchUntil = DateTime.MinValue;
+        knownCodexCount = cProfiles.Length;
+        FillChoices("CodexAccountList", cProfiles, row =>
+        {
+            var isAct = Flag(row, "active");
+            var email = Str(row, "email");
+            var plan = Str(row, "plan");
+            var sub = string.Join(" · ", new[] { email, plan.Length > 0 ? plan.ToUpperInvariant() : "" }.Where(s => s.Length > 0));
+            return new Choice(
+                row,
+                Str(row, "label"),
+                sub,
+                isAct ? L("active_badge") : "",
+                Brush("#0F2D24"),
+                mint,
+                isAct ? "" : L("btn_switch_inline")
+            );
+        }, Str(Selected("CodexAccountList"), "id"));
+
+        var agy = Obj(res, "agy");
+        var aActive = Obj(agy, "active");
+        var aEmail = Str(aActive, "email");
+        var aPlan = Str(aActive, "plan");
+        var aQuota = Str(aActive, "quota_summary");
+        var creditsObj = Get(aActive, "credits");
+        var creditsStr = creditsObj == null ? "" : string.Format(L("credits_fmt"), Convert.ToString(creditsObj));
+
+        C<TextBlock>("AgyActiveText").Text = aEmail.Length > 0 ? aEmail : L("not_signed_in");
+        C<TextBlock>("AgyPlanText").Text = aPlan.Length > 0
+            ? string.Format(L("agy_plan_fmt"), aPlan.ToUpperInvariant())
+            : (aEmail.Length > 0 ? L("agy_plan_active") : L("not_signed_in"));
+        C<TextBlock>("AgyCreditsText").Text = creditsStr;
+        C<TextBlock>("AgyQuotaText").Text = aQuota.Length > 0 ? aQuota : L("agy_quota_empty");
+
+        FillChoices("AgyAccountList", Rows(agy, "profiles"), row =>
+        {
+            var isAct = Flag(row, "active");
+            return new Choice(row, Str(row, "label"), Str(row, "email"), isAct ? L("active_badge") : "", Brush("#12233E"), blue);
+        }, "");
+        Note(L("accounts_refreshed"));
+    }
+
+    async Task LoginCodexAccount()
+    {
+        await Api("login_account", "provider", "codex");
+        loginWatchUntil = DateTime.UtcNow.AddSeconds(65);
+        Note(L("login_launched"));
+    }
+
+    async Task RefreshRemoteControl()
+    {
+        var res = await Api("remote_control_status");
+        ApplyRemoteStatus("codex", Obj(res, "codex"));
+        ApplyRemoteStatus("agy", Obj(res, "agy"));
+        var relay = await Api("relay_get");
+        UpdateLocalRelayBadge(Obj(relay, "local_relay"));
+    }
+
+    async Task RemoteControlAction(string provider, string action)
+    {
+        var name = provider == "agy" ? C<TextBox>("AgyRcName").Text.Trim() : "";
+        var res = await Api("remote_control_action", "provider", provider, "action", action, "name", name);
+        var st = Obj(res, "status");
+        ApplyRemoteStatus(provider, st);
+        if (provider == "codex" && action == "pair")
+        {
+            var code = Str(st, "code");
+            var url = Str(st, "url");
+            var raw = Str(st, "raw");
+            var outText = code.Length > 0 ? "Code: " + code + (url.Length > 0 ? "  |  " + url : "") : raw;
+            if (outText.Length > 0)
+            {
+                C<TextBox>("CodexRcOutput").Text = outText;
+                C<TextBox>("CodexRcOutput").Visibility = Visibility.Visible;
+            }
+        }
+        Note(L("rc_updated"));
+    }
+
+    void ApplyRemoteStatus(string provider, Record st)
+    {
+        var running = Flag(st, "running");
+        var err = Str(st, "error");
+        if (provider == "codex")
+        {
+            C<TextBlock>("CodexRcStatus").Text = err.Length > 0 ? L("unavailable") : running ? L("rc_active") : L("rc_inactive");
+            C<TextBlock>("CodexRcStatus").Foreground = running ? mint : err.Length > 0 ? coral : muted;
+            var parts = new List<string>();
+            if (Flag(st, "desktop_remote")) parts.Add(L("rc_desktop_connected"));
+            if (Flag(st, "daemon_running")) parts.Add(L("rc_daemon_running"));
+            var envId = Str(st, "environment_id");
+            if (envId.Length > 0) parts.Add("Env: " + envId);
+            if (err.Length > 0) parts.Add(err);
+            C<TextBlock>("CodexRcDetail").Text = parts.Count > 0 ? string.Join("  ·  ", parts.ToArray()) : L("rc_codex_idle");
+        }
+        else
+        {
+            var reg = Flag(st, "registered");
+            var inst = Str(st, "instance");
+            C<TextBlock>("AgyRcStatus").Text = err.Length > 0 ? L("unavailable") : running ? L("rc_active") : reg ? L("rc_registered") : L("rc_not_registered");
+            C<TextBlock>("AgyRcStatus").Foreground = running ? blue : err.Length > 0 ? coral : muted;
+            C<TextBlock>("AgyRcDetail").Text = err.Length > 0 ? err :
+                (inst.Length > 0 ? L("rc_instance") + ": " + inst : Display(st, "raw", L("rc_agy_idle")));
+        }
+    }
+
+    void UpdateLocalRelayBadge(Record status)
+    {
+        var running = Flag(status, "running");
+        var port = Str(status, "port");
+        C<TextBlock>("LocalRelayStatus").Text = running
+            ? string.Format(L("local_relay_running"), port.Length > 0 ? port : "8793")
+            : L("local_relay_stopped");
+        C<TextBlock>("LocalRelayStatus").Foreground = running ? mint : muted;
+    }
+
+    async Task StartLocalRelay()
+    {
+        var status = await Api("local_relay_start", "bind", "127.0.0.1", "port", 8793);
+        UpdateLocalRelayBadge(status);
+        Note(L("local_relay_started"));
+    }
+
+    async Task StopLocalRelay()
+    {
+        var status = await Api("local_relay_stop");
+        UpdateLocalRelayBadge(status);
+        Note(L("local_relay_stopped"));
+    }
+
+    void UpdateAutostartUi(bool enabled)
+    {
+        suppressAutostartEvent = true;
+        C<CheckBox>("AutostartToggle").IsChecked = enabled;
+        C<CheckBox>("OnbAutoToggle").IsChecked = enabled;
+        suppressAutostartEvent = false;
+        C<TextBlock>("AutostartStateText").Text = enabled ? L("enabled") : L("disabled");
+        C<TextBlock>("AutostartStateText").Foreground = enabled ? mint : muted;
+    }
+
+    async Task OnAutostartToggled(bool enabled)
+    {
+        if (suppressAutostartEvent) return;
+        await Work(L("saving_settings"), async () =>
+        {
+            var res = await Api("autostart_set", "enabled", enabled);
+            var actual = Flag(res, "autostart");
+            UpdateAutostartUi(actual);
+            Note(actual ? L("autostart_on") : L("autostart_off"));
+        });
+    }
+
+    async Task ApplySelectedLanguage()
+    {
+        var item = (ComboBoxItem)C<ComboBox>("LanguagePicker").SelectedItem;
+        var chosen = item != null ? Convert.ToString(item.Tag) : "en";
+        var res = await Api("settings_save", "language", chosen);
+        lang = Str(res, "language") == "pl" ? "pl" : "en";
+        ApplyLanguage();
+        await ReadProjects(ProjectId());
+        Note(Flag(res, "stick_synced") ? L("lang_saved_synced") : L("lang_saved"));
+    }
+
+    void BrowseProjectsRoot()
+    {
+        using (var picker = new Forms.FolderBrowserDialog { Description = L("settings_projects_title") })
+        {
+            if (picker.ShowDialog() == Forms.DialogResult.OK)
+                C<TextBox>("ProjectsRootInput").Text = picker.SelectedPath;
+        }
+    }
+
+    async Task SaveProjectsRoot()
+    {
+        var raw = C<TextBox>("ProjectsRootInput").Text.Trim();
+        var res = await Api("settings_save", "projects_root", raw);
+        C<TextBox>("ProjectsRootInput").Text = Str(res, "projects_root");
+        Note(L("settings_saved"));
+    }
+
+    // Onboarding Flow
+    void ShowOnboarding(int step)
+    {
+        onboardingStep = Math.Max(1, Math.Min(3, step));
+        var overlay = C<Grid>("OnboardingOverlay");
+        var wasHidden = overlay.Visibility != Visibility.Visible;
+        overlay.Visibility = Visibility.Visible;
+        if (wasHidden) AnimateEntrance(C<FrameworkElement>("OnboardingCard"));
+        else AnimateEntrance(C<FrameworkElement>("OnbStep" + onboardingStep));
+
+        C<StackPanel>("OnbStep1").Visibility = onboardingStep == 1 ? Visibility.Visible : Visibility.Collapsed;
+        C<StackPanel>("OnbStep2").Visibility = onboardingStep == 2 ? Visibility.Visible : Visibility.Collapsed;
+        C<StackPanel>("OnbStep3").Visibility = onboardingStep == 3 ? Visibility.Visible : Visibility.Collapsed;
+        C<Button>("OnbBackBtn").Visibility = onboardingStep > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateOnboardingLanguageCards();
+        UpdateOnboardingTexts();
+        if (onboardingStep == 3) UpdateOnboardingStick(lastDevicesResult);
+    }
+
+    void UpdateOnboardingLanguageCards()
+    {
+        var enBtn = C<Button>("OnbLangEnBtn");
+        var plBtn = C<Button>("OnbLangPlBtn");
+        enBtn.Background = lang == "en" ? Brush("#172444") : Brush("#0B0F1A");
+        enBtn.BorderBrush = lang == "en" ? accent : Brush("#26334E");
+        plBtn.Background = lang == "pl" ? Brush("#172444") : Brush("#0B0F1A");
+        plBtn.BorderBrush = lang == "pl" ? accent : Brush("#26334E");
+    }
+
+    void UpdateOnboardingTexts()
+    {
+        C<TextBlock>("OnbTagline").Text = L("tagline");
+        C<TextBlock>("OnbStepBadge").Text = string.Format(L("onb_step_badge"), onboardingStep);
+        C<TextBlock>("OnbStepTitle").Text = L("onb_step" + onboardingStep + "_title");
+        C<TextBlock>("OnbStepSub").Text = L("onb_step" + onboardingStep + "_sub");
+        C<TextBlock>("OnbLangPrompt").Text = L("onb_lang_prompt");
+        C<TextBlock>("OnbLangEnSub").Text = L("onb_lang_en_sub");
+        C<TextBlock>("OnbLangPlSub").Text = L("onb_lang_pl_sub");
+        C<TextBlock>("OnbAutoTitle").Text = L("onb_auto_title");
+        C<TextBlock>("OnbAutoDesc").Text = L("onb_auto_desc");
+        C<TextBlock>("OnbAutoHint").Text = L("onb_auto_hint");
+        C<Button>("OnbPairUsbBtn").Content = L("btn_pair_usb");
+        C<Button>("OnbSkipBtn").Content = L("onb_skip");
+        C<Button>("OnbBackBtn").Content = L("onb_back");
+        C<Button>("OnbNextBtn").Content = onboardingStep == 3 ? L("onb_finish") : L("onb_continue");
+    }
+
+    async Task PickOnboardingLanguage(string chosen)
+    {
+        lang = chosen == "pl" ? "pl" : "en";
+        C<ComboBox>("LanguagePicker").SelectedIndex = lang == "pl" ? 1 : 0;
+        ApplyLanguage();
+        UpdateOnboardingLanguageCards();
+        UpdateOnboardingTexts();
+        try
+        {
+            await Api("settings_save", "language", lang);
+            await ReadProjects(ProjectId());
+        }
+        catch { }
+    }
+
+    async Task AdvanceOnboarding()
+    {
+        if (onboardingStep == 1)
+        {
+            ShowOnboarding(2);
+            return;
+        }
+        if (onboardingStep == 2)
+        {
+            bool autoOn = C<CheckBox>("OnbAutoToggle").IsChecked == true;
+            await Work(L("saving_settings"), async () =>
+            {
+                var res = await Api("settings_save", "language", lang, "autostart", autoOn);
+                UpdateAutostartUi(Flag(res, "autostart"));
+            });
+            ShowOnboarding(3);
+            return;
+        }
+        await FinishOnboarding();
+    }
+
+    async Task OnboardingPairUsb()
+    {
+        await Api("pair_usb", "address", "", "code", "");
+        Note(L("stick_paired"));
+        await RefreshState();
+        UpdateOnboardingStick(lastDevicesResult);
+    }
+
+    async Task FinishOnboarding()
+    {
+        await Work(L("saving_settings"), async () =>
+        {
+            bool autoOn = C<CheckBox>("OnbAutoToggle").IsChecked == true;
+            var res = await Api("settings_save", "language", lang, "autostart", autoOn, "onboarded", true);
+            UpdateAutostartUi(Flag(res, "autostart"));
+        });
+        C<Grid>("OnboardingOverlay").Visibility = Visibility.Collapsed;
+        Note(L("ready"));
+    }
+
+    void UpdateOnboardingStick(Record result)
+    {
+        if (C<Grid>("OnboardingOverlay").Visibility != Visibility.Visible || onboardingStep != 3) return;
+        var usb = Flag(result, "usb");
+        var rows = Rows(result, "devices");
+        var active = rows.FirstOrDefault(r => Flag(r, "usb")) ?? rows.FirstOrDefault(r => Flag(r, "online")) ?? new Record();
+        var paired = Flag(active, "paired");
+        var snap = Obj(active, "snapshot");
+        var bat = IntVal(snap, "battery");
+        var chg = Flag(snap, "charging");
+        var batPart = bat >= 0 ? (" · " + (chg ? "⚡ " : "") + bat + "%") : "";
+
+        C<Ellipse>("OnbStickDot").Fill = usb ? mint : rows.Any(r => Flag(r, "online")) ? blue : amber;
+        C<TextBlock>("OnbStickState").Text = usb
+            ? (paired ? L("onb_stick_usb_paired") + batPart : L("onb_stick_usb_unpaired") + batPart)
+            : (paired ? L("onb_stick_wifi") + batPart : L("onb_stick_missing"));
+        C<TextBlock>("OnbStickDetail").Text = usb
+            ? (paired ? L("onb_stick_ready_desc") : L("onb_stick_pair_desc"))
+            : L("onb_stick_wait_desc");
+        C<Button>("OnbPairUsbBtn").IsEnabled = usb;
+        C<Button>("OnbPairUsbBtn").Visibility = usb && paired ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    async Task Pair(string method, bool useCode)
+    {
+        var code = useCode ? C<TextBox>("PairCode").Text.Trim() : "";
+        if (useCode && code.Length == 0) throw new InvalidOperationException(L("enter_stick_code"));
+        await Api(method, "address", C<TextBox>("DeviceAddress").Text.Trim(), "code", code);
+        C<TextBox>("PairCode").Clear();
+        Note(L("stick_paired"));
+        await RefreshState();
+    }
+
+    string DeviceTitle(Record row)
+    {
+        var id = Str(row, "id");
+        var status = Flag(row, "usb") ? "USB" : Flag(row, "remote") ? L("internet") :
+            Flag(row, "online") ? "Wi-Fi" : Flag(row, "pairing") ? L("code_active") : "Offline";
+        var address = Str(row, "address");
+        return "StickS3 " + id.Substring(Math.Max(0, id.Length - 4)).ToUpperInvariant() + "  ·  " + status +
+            (address.Length > 0 ? "  ·  " + address : "");
+    }
+
+    string BatteryBadgeText(Record snap)
+    {
+        var bat = IntVal(snap, "battery");
+        if (bat < 0) return "";
+        return (Flag(snap, "charging") ? "⚡ " : "") + bat + "%";
+    }
+
+    async Task Discover()
+    {
+        var result = await Api("discover", "address", C<TextBox>("DeviceAddress").Text.Trim());
+        var found = Rows(result, "devices");
+        if (found.Length > 0)
+        {
+            var ready = found.FirstOrDefault(row => Flag(row, "pairing")) ?? found[0];
+            FillChoices("DeviceList", found, row => new Choice(row, DeviceTitle(row), Str(row, "address"), Flag(row, "pairing") ? L("code_active") : "", Brush("#172444"), accent), Str(ready, "id"));
+            Note(L("select_stick_enter_code"));
+        }
+        else Note(L("no_sticks_found"));
+    }
+
+    async Task Forget()
+    {
+        var row = Selected("DeviceList");
+        if (row.Count == 0) throw new InvalidOperationException(L("select_paired_stick"));
+        await Api("forget", "device", Str(row, "id"));
+        deviceSignature = "";
+        await RefreshState();
+        Note(L("pairing_removed"));
+    }
+
+    void UpdateSidebarBattery(Record snapshot)
+    {
+        var bat = IntVal(snapshot, "battery");
+        var charging = Flag(snapshot, "charging");
+        var badge = C<Border>("SidebarBatteryBadge");
+        var bar = C<ProgressBar>("SidebarBatteryBar");
+        if (bat < 0)
+        {
+            badge.Visibility = Visibility.Collapsed;
+            bar.Visibility = Visibility.Collapsed;
+            return;
+        }
+        badge.Visibility = Visibility.Visible;
+        bar.Visibility = Visibility.Visible;
+        bar.Value = bat;
+        C<TextBlock>("SidebarBatteryText").Text = (charging ? "⚡ " : "") + bat + "%";
+        SolidColorBrush color = (charging || bat >= 45) ? mint : (bat >= 20 ? amber : coral);
+        SolidColorBrush bg = (charging || bat >= 45) ? Brush("#0F2D24") : (bat >= 20 ? Brush("#2E2210") : Brush("#2E131E"));
+        SolidColorBrush bd = (charging || bat >= 45) ? Brush("#1F5B4A") : (bat >= 20 ? Brush("#5C4319") : Brush("#5C2032"));
+        C<TextBlock>("SidebarBatteryText").Foreground = color;
+        bar.Foreground = color;
+        badge.Background = bg;
+        badge.BorderBrush = bd;
+    }
+
+    async Task RefreshState()
+    {
+        if (ticking) return;
+        ticking = true;
+        try
+        {
+            var result = await Api("devices");
+            lastDevicesResult = result;
+            var rows = Rows(result, "devices");
+            var signature = string.Join("|", rows.Select(row => Str(row, "id") + DeviceTitle(row) + BatteryBadgeText(Obj(row, "snapshot"))));
+            var device = DeviceId();
+            if (deviceSignature != signature)
+            {
+                deviceSignature = signature;
+                FillChoices("DeviceList", rows, row =>
+                {
+                    var snap = Obj(row, "snapshot");
+                    var bat = IntVal(snap, "battery");
+                    var batText = BatteryBadgeText(snap);
+                    var sub = Str(snap, "screen").Length > 0 ? L("stick_screen") + ": " + Str(snap, "screen") : Str(row, "address");
+                    var fg = bat >= 45 || Flag(snap, "charging") ? mint : bat >= 20 ? amber : coral;
+                    var bg = bat >= 45 || Flag(snap, "charging") ? Brush("#0F2D24") : bat >= 20 ? Brush("#2E2210") : Brush("#2E131E");
+                    return new Choice(row, DeviceTitle(row), sub, batText, bg, fg);
+                }, Str(Selected("DeviceList"), "id"));
+                var activeDev = rows.FirstOrDefault(row => Str(row, "id") == device) ??
+                                rows.FirstOrDefault(row => Flag(row, "usb")) ?? rows.FirstOrDefault();
+                Fill("WifiDevice", rows, DeviceTitle, activeDev == null ? "" : Str(activeDev, "id"));
+            }
+            var selected = rows.FirstOrDefault(row => Str(row, "id") == DeviceId())
+                           ?? rows.FirstOrDefault(row => Flag(row, "usb") || Flag(row, "online") || Flag(row, "remote"))
+                           ?? rows.FirstOrDefault()
+                           ?? new Record();
+            var snapshot = Obj(selected, "snapshot");
+            linkSnapshot = snapshot;
+            C<TextBlock>("LinkStatus").Text = Flag(result, "usb") ? L("stick_usb") :
+                rows.Any(row => Flag(row, "remote")) ? L("stick_remote") :
+                rows.Any(row => Flag(row, "online")) ? L("stick_wifi") : L("bridge_ready");
+            var isConnected = Flag(result, "usb") || rows.Any(row => Flag(row, "online") || Flag(row, "remote"));
+            C<Ellipse>("LinkDot").Fill = isConnected ? mint : muted;
+            C<TextBlock>("LinkStatus").Foreground = isConnected ? mint : muted;
+            UpdateSidebarBattery(snapshot);
+            C<TextBlock>("Context").Text = Display(snapshot, "project_name", Display(snapshot, "session", Display(snapshot, "screen", L("waiting_stick"))));
+            C<TextBlock>("WifiStatus").Text = Display(snapshot, "ssid", L("stick_no_wifi")) + "  " + Str(snapshot, "wifi_message");
+            UpdateOnboardingStick(result);
+            await UpdateWifi(snapshot);
+
+            if (DateTime.UtcNow < loginWatchUntil)
+            {
+                try { await RefreshAccounts(false); } catch { }
+            }
+
+            if (section == "Sessions")
+            {
+                var sessions = Rows(await Api("recent_sessions"), "items");
+                var states = string.Join("|", sessions.Select(row => Str(row, "id") + Str(row, "state")));
+                if (states != sessionSignature)
+                {
+                    sessionSignature = states;
+                    var selectedId = Str(Selected("SessionList"), "id");
+                    FillChoices("SessionList", sessions, row =>
+                    {
+                        var st = Str(row, "state");
+                        var fg = st == "finished" ? mint : st == "running" ? blue : (st == "error" || st == "orphaned") ? coral : amber;
+                        var bg = st == "finished" ? Brush("#0F2D24") : st == "running" ? Brush("#12233E") : (st == "error" || st == "orphaned") ? Brush("#2E131E") : Brush("#2E2210");
+                        return new Choice(row, Str(row, "label"), Str(row, "detail"), SessionState(st), bg, fg);
+                    }, selectedId.Length > 0 ? selectedId : (sessions.Length > 0 ? Str(sessions[0], "id") : ""));
+                    await ReadSession();
+                }
+                else
+                {
+                    var activeId = Str(Selected("SessionList"), "id");
+                    if (activeId.Length > 0 && sessions.Any(s => Str(s, "id") == activeId &&
+                        (Str(s, "state") == "running" || Str(s, "state") == "waiting_input")))
+                    {
+                        await ReadSession();
+                    }
+                }
+            }
+        }
+        catch (Exception) { C<TextBlock>("LinkStatus").Text = L("bridge_offline"); }
+        finally { ticking = false; }
+    }
+
+    string SessionState(string state)
+    {
+        switch (state)
+        {
+            case "queued": return L("state_queued");
+            case "running": return L("state_running");
+            case "waiting_input": return L("state_waiting_input");
+            case "finished": return L("state_finished");
+            case "cancelled": return L("state_cancelled");
+            case "limit": return L("state_limit");
+            case "error": return L("state_error");
+            default: return state;
+        }
+    }
+
+    void RenderSessionQuestion(string jobId, Record result)
+    {
+        var panel = C<Border>("QuestionPanel");
+        var optionsPanel = C<WrapPanel>("QuestionOptions");
+        optionsPanel.Children.Clear();
+        var q = Obj(result, "question");
+        if (Str(result, "state") != "waiting_input" || q.Count == 0)
+        {
+            panel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        C<TextBlock>("QuestionHeader").Text = Display(q, "header", L("state_waiting_input"));
+        C<TextBlock>("QuestionText").Text = Str(q, "question");
+        var opts = Rows(q, "options");
+        for (int i = 0; i < opts.Length; i++)
+        {
+            var idx = i;
+            var opt = opts[i];
+            var lbl = Str(opt, "label");
+            var desc = Str(opt, "description");
+            var btn = new Button
+            {
+                Content = lbl,
+                ToolTip = desc.Length > 0 ? desc : null,
+                Style = (Style)window.FindResource(i == 0 ? "PrimaryBtn" : "Button"),
+                Margin = new Thickness(0, 0, 8, 6)
+            };
+            btn.Click += async (s, e) =>
+            {
+                panel.IsEnabled = false;
+                await Work(L("sending_answer"), async () =>
+                {
+                    await Api("answer_question", "job", jobId, "choice", idx);
+                    await ReadSession();
+                    Note(L("answer_sent"));
+                });
+                panel.IsEnabled = true;
+            };
+            optionsPanel.Children.Add(btn);
+        }
+        panel.Visibility = Visibility.Visible;
+    }
+
+    async Task ReadSession()
+    {
+        var id = Str(Selected("SessionList"), "id");
+        C<Button>("OpenConversation").IsEnabled = false;
+        C<Button>("OpenAnswer").IsEnabled = false;
+        C<Button>("OpenAnswer").Tag = null;
+        C<Border>("QuestionPanel").Visibility = Visibility.Collapsed;
+        C<TextBox>("SessionAnswer").Clear();
+        C<TextBlock>("SessionLocation").Text = id.Length > 0 ? L("reading_session") : L("select_session_prompt");
+        if (id.Length == 0) return;
+        try
+        {
+            var result = await Api("session_details", "job", id);
+            if (id != Str(Selected("SessionList"), "id")) return;
+            var provider = Str(result, "provider");
+            var effort = Str(result, "effort");
+            var heading = string.Join("  ·  ", new[] {
+                provider == "agy" ? "Antigravity" : "Codex",
+                Str(result, "model_label"), effort == "xhigh" ? "XHigh" : effort,
+                SessionState(Str(result, "state"))
+            }.Where(value => value.Length > 0));
+            var title = Str(result, "conversation_title");
+            if (provider == "agy" && Str(result, "conversation").Length > 0)
+            {
+                if (Flag(result, "cli_project")) heading += "\nProjects -> CLI Project";
+                if (title.Length > 0) heading += "\nCtrl+K  ·  " + title;
+                else heading += "\n" + L("untitled_conv");
+            }
+            if (Flag(result, "answer_truncated")) heading += "\n" + L("full_answer_in_file");
+            C<TextBlock>("SessionLocation").Text = heading;
+            C<TextBox>("SessionAnswer").Text = Display(result, "answer", Display(result, "preview", Str(result, "detail")));
+            RenderSessionQuestion(id, result);
+            C<Button>("OpenConversation").IsEnabled = Flag(result, "can_open_conversation");
+            var path = Str(result, "output_path");
+            C<Button>("OpenAnswer").Tag = path;
+            C<Button>("OpenAnswer").IsEnabled = path.Length > 0;
+        }
+        catch (Exception error)
+        {
+            if (id == Str(Selected("SessionList"), "id")) C<TextBlock>("SessionLocation").Text = error.Message;
+        }
+    }
+
+    async Task ScanWifi()
+    {
+        var device = DeviceId();
+        if (device.Length == 0) throw new InvalidOperationException(L("connect_stick_first"));
+        var result = await Api("wifi_scan", "device", device);
+        if (device != DeviceId()) return;
+        pendingScanDevice = device;
+        pendingRevision = Convert.ToInt32(Get(result, "target_revision"));
+        scanUntil = DateTime.UtcNow.AddSeconds(16);
+    }
+
+    async Task JoinWifi()
+    {
+        var network = Selected("NetworkList");
+        if (network.Count == 0) throw new InvalidOperationException(L("select_network_err"));
+        var box = C<PasswordBox>("WifiPassword");
+        var secret = Flag(network, "secured") ? box.Password : "";
+        var length = Encoding.UTF8.GetByteCount(secret);
+        if (Flag(network, "secured") && (length < 8 || length > 63))
+            throw new InvalidOperationException(L("password_length_err"));
+        var device = DeviceId();
+        box.Clear();
+        var result = await Api("wifi_connect", "device", device, "ssid", Str(network, "ssid"), "password", secret);
+        if (device != DeviceId()) return;
+        pendingWifiDevice = device;
+        pendingWifiId = Str(result, "wifi_action");
+        wifiUntil = DateTime.UtcNow.AddSeconds(32);
+        Note(L("stick_joining_wifi"));
+    }
+
+    async Task UpdateWifi(Record snapshot)
+    {
+        if (pendingScanDevice != null && pendingScanDevice == DeviceId())
+        {
+            if (Convert.ToInt32(Get(snapshot, "scan_revision")) >= pendingRevision)
+            {
+                var device = pendingScanDevice;
+                pendingScanDevice = null;
+                await Work(L("reading_networks"), async () =>
+                {
+                    var networks = Rows(await Api("wifi_list", "device", device), "networks");
+                    if (device != DeviceId()) return;
+                    Fill("NetworkList", networks, row => Str(row, "ssid") + "  ·  " +
+                        (Flag(row, "secured") ? L("secured") : L("open")) + "  ·  " + Str(row, "rssi") + " dBm");
+                    Note(networks.Length > 0 ? L("select_network") : L("no_networks_found"));
+                });
+            }
+            else if (DateTime.UtcNow > scanUntil) { pendingScanDevice = null; Note(L("scan_timeout"), true); }
+        }
+        if (pendingWifiDevice != null && pendingWifiDevice == DeviceId())
+        {
+            var phase = Str(snapshot, "wifi_phase");
+            if (Str(snapshot, "wifi_action") == pendingWifiId && (phase == "connected" || phase == "failed" || phase == "unsaved"))
+            {
+                pendingWifiDevice = null;
+                Note(phase == "connected" ? L("wifi_connected") : Str(snapshot, "wifi_message"), phase != "connected");
+            }
+            else if (DateTime.UtcNow > wifiUntil) { pendingWifiDevice = null; Note(L("check_stick_screen")); }
+        }
+    }
+
+    async Task SaveRelay(string endpoint)
+    {
+        var result = await Api("relay_save", "endpoint", endpoint);
+        C<TextBox>("RelayAddress").Text = Str(result, "endpoint");
+        Note(L("relay_saved"));
+    }
+
+    async Task ExportChannels()
+    {
+        var channels = Rows(await Api("relay_get"), "channels");
+        if (channels.Length == 0) throw new InvalidOperationException(L("pair_for_channels"));
+        var dialog = new Microsoft.Win32.SaveFileDialog { FileName = "agentdeck-channels.json", Filter = "JSON|*.json" };
+        if (dialog.ShowDialog(window) != true) { Note(L("ready")); return; }
+        File.WriteAllText(dialog.FileName, new JavaScriptSerializer().Serialize(channels));
+        Note(L("channels_saved"));
+    }
+
+    async Task TestRelay()
+    {
+        var device = DeviceId();
+        await Api("relay_test", "device", device);
+        bool reachable = false;
+        Task cleanup;
+        try
+        {
+            for (int i = 0; i < 12; ++i)
+            {
+                await Task.Delay(1000);
+                var rows = Rows(await Api("devices"), "devices");
+                if (rows.Any(row => Str(row, "id") == device && Flag(row, "remote")))
+                {
+                    reachable = true;
+                    break;
+                }
+            }
+        }
+        finally { cleanup = Api("relay_test", "device", device, "enabled", false); }
+        await cleanup;
+        Note(reachable ? L("relay_reachable") : L("relay_unreachable"), !reachable);
+    }
+
+    void ApplyLanguage()
+    {
+        window.Title = L("window_title");
+        C<TextBlock>("BrandTagline").Text = L("tagline");
+        C<TextBlock>("NavPromptsText").Text = L("nav_prompts");
+        C<TextBlock>("NavSessionsText").Text = L("nav_sessions");
+        C<TextBlock>("NavAccountsText").Text = L("nav_accounts");
+        C<TextBlock>("NavDevicesText").Text = L("nav_devices");
+        C<TextBlock>("NavWifiText").Text = L("nav_wifi");
+        C<TextBlock>("NavRemoteText").Text = L("nav_remote");
+        C<TextBlock>("NavSettingsText").Text = L("nav_settings");
+
+        C<TextBlock>("ProjectsTitle").Text = L("projects_title");
+        C<Button>("FilterAll").Content = L("filter_all");
+        C<Button>("NewProjectBtn").Content = L("btn_new_project");
+        C<Button>("RenameProjectBtn").Content = L("btn_rename");
+        C<Button>("AddProject").Content = L("btn_add_folder");
+        C<Button>("ShowProject").Content = L("btn_open_stick");
+        C<Button>("UseProject").Content = L("btn_sync_stick");
+        C<Button>("BindProject").Content = L("btn_bind_agy");
+        C<TextBlock>("SuggestedTitle").Text = L("suggested_title");
+        C<TextBlock>("PromptTitleLabel").Text = L("prompt_name");
+        C<TextBlock>("PromptDescLabel").Text = L("prompt_desc");
+        C<ComboBoxItem>("ProviderBoth").Content = L("both_ides");
+        C<Button>("SavePrompt").Content = L("btn_save_prompt");
+        C<Button>("NewPrompt").Content = L("btn_new_prompt");
+        C<Button>("DeletePrompt").Content = L("btn_delete");
+        PopulateTemplateChips();
+
+        C<TextBlock>("SessionsTitle").Text = L("sessions_title");
+        C<Button>("OpenConversation").Content = L("btn_open_agy_cli");
+        C<Button>("OpenAnswer").Content = L("btn_open_answer");
+
+        C<TextBlock>("CodexAccountsTitle").Text = L("codex_accounts_title");
+        C<TextBlock>("CodexAccountsDesc").Text = L("codex_accounts_desc");
+        C<Button>("LoginCodexAccount").Content = L("btn_add_codex_account");
+        C<Button>("RefreshAccountsBtn").Content = L("btn_refresh");
+        C<TextBlock>("AgyAccountsTitle").Text = L("agy_accounts_title");
+        C<TextBlock>("AgyAccountsDesc").Text = L("agy_accounts_desc");
+        C<Button>("RefreshAgyBtn").Content = L("btn_refresh_sub");
+
+        C<TextBlock>("DevicesTitle").Text = L("devices_title");
+        C<Button>("ShowCode").Content = L("btn_show_code");
+        C<Button>("PairUsb").Content = L("btn_pair_usb");
+        C<Button>("PairUsbCode").Content = L("btn_pair_usb_code");
+        C<Button>("FindDevices").Content = L("btn_scan_lan");
+        C<Button>("ForgetDevice").Content = L("btn_forget");
+        C<TextBlock>("PairCodeLabel").Text = L("pair_code_label");
+        C<Button>("PairLan").Content = L("btn_pair_wifi");
+        C<TextBlock>("DeviceAddressLabel").Text = L("device_addr_label");
+
+        C<TextBlock>("WifiTitle").Text = L("wifi_title");
+        C<Button>("ScanWifi").Content = L("btn_scan_wifi");
+        C<Button>("JoinWifi").Content = L("btn_join_wifi");
+
+        C<TextBlock>("CodexRcTitle").Text = L("codex_rc_title");
+        C<TextBlock>("CodexRcDesc").Text = L("codex_rc_desc");
+        C<Button>("CodexRcStart").Content = L("btn_start_daemon");
+        C<Button>("CodexRcPair").Content = L("btn_pair_code");
+        C<Button>("CodexRcStop").Content = L("btn_stop");
+        C<TextBlock>("AgyRcTitle").Text = L("agy_rc_title");
+        C<TextBlock>("AgyRcDesc").Text = L("agy_rc_desc");
+        C<TextBlock>("AgyRcNameLabel").Text = L("agy_rc_name_label");
+        C<Button>("AgyRcStart").Content = L("btn_start_daemon");
+        C<Button>("AgyRcStop").Content = L("btn_stop");
+        C<Button>("RefreshRemoteBtn").Content = L("btn_refresh");
+        C<TextBlock>("RelayTitle").Text = L("relay_title");
+        C<TextBlock>("RelayDesc").Text = L("relay_desc");
+        C<Button>("StartLocalRelay").Content = L("btn_start_local_relay");
+        C<Button>("StopLocalRelay").Content = L("btn_stop_local_relay");
+        C<TextBlock>("RelayAddressLabel").Text = L("relay_addr_label");
+        C<Button>("SaveRelay").Content = L("btn_save_url");
+        C<Button>("SyncRelay").Content = L("btn_push_stick");
+        C<Button>("TestRelay").Content = L("btn_test_conn");
+        C<Button>("ExportChannels").Content = L("btn_export_channels");
+        C<Button>("ClearRelay").Content = L("btn_clear_url");
+
+        C<TextBlock>("SettingsAutostartTitle").Text = L("settings_auto_title");
+        C<TextBlock>("SettingsAutostartDesc").Text = L("settings_auto_desc");
+        C<TextBlock>("AutostartStateText").Text = C<CheckBox>("AutostartToggle").IsChecked == true ? L("enabled") : L("disabled");
+        C<TextBlock>("SettingsLangTitle").Text = L("settings_lang_title");
+        C<TextBlock>("SettingsLangDesc").Text = L("settings_lang_desc");
+        C<Button>("SaveLanguageBtn").Content = L("btn_apply_lang");
+        C<TextBlock>("SettingsProjectsTitle").Text = L("settings_projects_title");
+        C<TextBlock>("SettingsProjectsDesc").Text = L("settings_projects_desc");
+        C<Button>("BrowseProjectsRoot").Content = L("btn_browse");
+        C<Button>("SaveProjectsRoot").Content = L("btn_save_folder");
+        C<TextBlock>("SettingsAboutTitle").Text = L("settings_about_title");
+        C<TextBlock>("SettingsAboutDesc").Text = L("settings_about_desc");
+        C<Button>("OpenWizardBtn").Content = L("btn_open_wizard");
+        C<Button>("OpenDataFolderBtn").Content = L("btn_open_data");
+        C<Button>("OpenAppFolderBtn").Content = L("btn_open_app");
+
+        UpdateOnboardingTexts();
+        UpdateHeading();
+    }
+
+    static Dictionary<string, Dictionary<string, string>> BuildStrings()
+    {
+        return new Dictionary<string, Dictionary<string, string>>
+        {
+            {
+                "en", new Dictionary<string, string>
+                {
+                    { "window_title", "AgentDeck | Remote AI IDE control in your pocket." },
+                    { "tagline", "Remote AI IDE control in your pocket." },
+                    { "nav_prompts", "Projects & Prompts" },
+                    { "nav_sessions", "Sessions" },
+                    { "nav_accounts", "Accounts" },
+                    { "nav_devices", "Devices" },
+                    { "nav_wifi", "Wi-Fi" },
+                    { "nav_remote", "Remote Control" },
+                    { "nav_settings", "Settings" },
+                    { "sub_prompts", "IDE-synced projects, quick random workspaces, and global or per-project prompts" },
+                    { "sub_sessions", "Inspect live running jobs, answer agent questions, and review completed output" },
+                    { "sub_accounts", "Auto-synced Codex accounts with 1-click switching and live Antigravity subscription status" },
+                    { "sub_devices", "Pair and monitor your M5Stick S3 battery & link over USB or Wi-Fi" },
+                    { "sub_wifi", "Configure wireless networks directly on your StickS3" },
+                    { "sub_remote", "Official Codex & Antigravity Remote Control + StickS3 away-from-home relay" },
+                    { "sub_settings", "Autostart for Wake on LAN, language preferences, new projects directory, and setup wizard" },
+                    { "projects_title", "IDE Projects" },
+                    { "filter_all", "All" },
+                    { "btn_new_project", "+ New Project" },
+                    { "btn_rename", "Rename" },
+                    { "btn_add_folder", "Add Folder" },
+                    { "btn_open_stick", "Open on Stick" },
+                    { "btn_sync_stick", "Sync from Stick" },
+                    { "btn_bind_agy", "Bind Antigravity ID" },
+                    { "global_projects_title", "All Projects (Global)" },
+                    { "global_projects_sub", "Available in every project on StickS3" },
+                    { "global_hint", "Global prompts appear in all projects, including new random workspaces." },
+                    { "select_project", "Select a project" },
+                    { "both_ides", "Both IDEs" },
+                    { "both_short", "Both" },
+                    { "suggested_title", "Suggested templates (click to load):" },
+                    { "prompt_name", "Prompt Name" },
+                    { "prompt_desc", "Short description (what this prompt does)" },
+                    { "state_waiting_input", "Question" },
+                    { "sending_answer", "Sending answer to agent..." },
+                    { "answer_sent", "Answer sent to agent." },
+                    { "btn_save_prompt", "Save Prompt" },
+                    { "btn_new_prompt", "Clear / New" },
+                    { "btn_delete", "Delete" },
+                    { "sessions_title", "Recent Stick Sessions" },
+                    { "btn_open_agy_cli", "Open in Antigravity CLI" },
+                    { "btn_open_answer", "Open Output File" },
+                    { "codex_accounts_title", "Codex Accounts" },
+                    { "codex_accounts_desc", "Active Codex login is saved automatically. Add another account below and switch in one click from PC or StickS3." },
+                    { "btn_add_codex_account", "+ Add Codex Account" },
+                    { "btn_switch_inline", "Switch" },
+                    { "agy_accounts_title", "Antigravity Account" },
+                    { "agy_accounts_desc", "Antigravity uses your Google account directly inside Antigravity. Active tier and weekly AI quotas are synced below." },
+                    { "btn_refresh_sub", "Refresh Subscription" },
+                    { "agy_plan_fmt", "{0} PLAN" },
+                    { "agy_plan_active", "SIGNED IN" },
+                    { "credits_fmt", "{0} credits" },
+                    { "agy_quota_empty", "Click Refresh Subscription to query live Antigravity quota." },
+                    { "active_badge", "ACTIVE" },
+                    { "not_signed_in", "Not signed in" },
+                    { "devices_title", "Paired & Connected Devices" },
+                    { "stick_screen", "Screen" },
+                    { "btn_show_code", "Show Code on Stick" },
+                    { "btn_pair_usb", "Pair via USB" },
+                    { "btn_pair_usb_code", "USB with Code" },
+                    { "btn_scan_lan", "Scan LAN" },
+                    { "btn_forget", "Remove Pairing" },
+                    { "pair_code_label", "Pairing code shown on Stick" },
+                    { "btn_pair_wifi", "Pair Wi-Fi" },
+                    { "device_addr_label", "Stick IP Address (optional)" },
+                    { "wifi_title", "StickS3 Wi-Fi" },
+                    { "btn_scan_wifi", "Scan Wi-Fi on Stick" },
+                    { "btn_join_wifi", "Connect Stick" },
+                    { "codex_rc_title", "Codex Remote Control" },
+                    { "codex_rc_desc", "Enable official Codex Remote Control daemon to send prompts from mobile or StickS3 outside your home network." },
+                    { "btn_start_daemon", "Start Daemon" },
+                    { "btn_pair_code", "Pairing Code" },
+                    { "btn_stop", "Stop" },
+                    { "agy_rc_title", "Antigravity Remote Control" },
+                    { "agy_rc_desc", "Manage the Antigravity remote-control background daemon so your PC appears in mobile and remote sessions." },
+                    { "agy_rc_name_label", "Instance name (optional)" },
+                    { "btn_refresh", "Refresh" },
+                    { "relay_title", "StickS3 Away-From-Home Encrypted Relay" },
+                    { "relay_desc", "Connects your StickS3 over any hotspot to your home PC using end-to-end AES-256-GCM + HMAC encryption. Run the built-in relay behind a tunnel or reverse proxy." },
+                    { "btn_start_local_relay", "Start Built-In Relay (8793)" },
+                    { "btn_stop_local_relay", "Stop Built-In Relay" },
+                    { "relay_addr_label", "Relay Endpoint URL (http://...)" },
+                    { "btn_save_url", "Save URL" },
+                    { "btn_push_stick", "Push URL to Stick" },
+                    { "btn_test_conn", "Test Connection" },
+                    { "btn_export_channels", "Export Channel Keys" },
+                    { "btn_clear_url", "Clear URL" },
+                    { "settings_auto_title", "Background Autostart & Wake on LAN" },
+                    { "settings_auto_desc", "Start the silent AgentDeck bridge automatically at Windows login (zero CMD window) so Wake on LAN and StickS3 prompts work immediately." },
+                    { "enabled", "Enabled" },
+                    { "disabled", "Disabled" },
+                    { "autostart_on", "Autostart enabled (runs silently on boot)." },
+                    { "autostart_off", "Autostart disabled." },
+                    { "settings_lang_title", "Language" },
+                    { "settings_lang_desc", "English is enabled by default. Changes apply to Windows and automatically sync to a connected StickS3." },
+                    { "btn_apply_lang", "Apply Language" },
+                    { "settings_projects_title", "New Projects Directory" },
+                    { "settings_projects_desc", "New random-named projects created from StickS3 (e.g. solar-star) or Windows are created inside this directory." },
+                    { "btn_browse", "Browse..." },
+                    { "btn_save_folder", "Save Folder" },
+                    { "settings_about_title", "Setup Wizard & Folders" },
+                    { "settings_about_desc", "AgentDeck v0.6 · Launch the onboarding wizard anytime or open your local app and data directories." },
+                    { "btn_open_wizard", "Run Setup Wizard" },
+                    { "btn_open_data", "Open Data Folder" },
+                    { "btn_open_app", "Open App Folder" },
+                    { "onb_step_badge", "Step {0} of 3" },
+                    { "onb_step1_title", "Welcome to AgentDeck" },
+                    { "onb_step1_sub", "Choose your preferred language for AgentDeck on Windows and StickS3." },
+                    { "onb_lang_prompt", "Interface Language" },
+                    { "onb_lang_en_sub", "Default interface language" },
+                    { "onb_lang_pl_sub", "Polski interfejs na PC i Sticku" },
+                    { "onb_step2_title", "Always Ready for Wake on LAN" },
+                    { "onb_step2_sub", "Confirm background autostart so your PC responds automatically when woken from StickS3." },
+                    { "onb_auto_title", "Start AgentDeck silently with Windows" },
+                    { "onb_auto_desc", "Launches only the lightweight background bridge with zero CMD window so Wake on LAN and remote prompts work anytime." },
+                    { "onb_auto_hint", "Recommended: keeps your StickS3 ready whenever Windows boots or wakes." },
+                    { "onb_step3_title", "Connect Your StickS3" },
+                    { "onb_step3_sub", "Pair via USB in one click so Wi-Fi, battery monitoring, and Wake on LAN keys are configured." },
+                    { "onb_stick_usb_paired", "StickS3 connected & paired via USB" },
+                    { "onb_stick_usb_unpaired", "StickS3 detected on USB (not paired yet)" },
+                    { "onb_stick_wifi", "StickS3 reachable over Wi-Fi" },
+                    { "onb_stick_missing", "No StickS3 detected on USB right now" },
+                    { "onb_stick_ready_desc", "Your StickS3 is paired and ready. Click Finish to enter AgentDeck." },
+                    { "onb_stick_pair_desc", "Click Pair via USB below to bond this PC and StickS3 securely." },
+                    { "onb_stick_wait_desc", "Plug in your StickS3 via USB-C to pair now, or finish setup and pair anytime in Devices." },
+                    { "onb_skip", "Skip Setup" },
+                    { "onb_back", "Back" },
+                    { "onb_continue", "Continue" },
+                    { "onb_finish", "Get Started" },
+                    { "ready", "Ready" },
+                    { "loading_projects", "Loading IDE projects..." },
+                    { "saving_prompt", "Saving prompt..." },
+                    { "deleting_prompt", "Deleting prompt..." },
+                    { "creating_project", "Creating project..." },
+                    { "renaming_project", "Renaming project..." },
+                    { "select_project_folder", "Select project folder" },
+                    { "bind_agy_title", "Antigravity Project" },
+                    { "agy_project_id_label", "Antigravity Project ID" },
+                    { "sending_project", "Opening project on Stick..." },
+                    { "switching_account", "Switching Codex account..." },
+                    { "launching_login", "Launching Codex login..." },
+                    { "removing_account", "Removing saved account..." },
+                    { "loading_accounts", "Refreshing accounts..." },
+                    { "opening_pairing", "Opening pairing screen..." },
+                    { "enter_stick_code", "Enter the code shown on Stick." },
+                    { "pairing_usb", "Pairing via USB..." },
+                    { "checking_usb_code", "Checking USB code..." },
+                    { "checking_wifi_code", "Checking Wi-Fi code..." },
+                    { "scanning_lan", "Scanning LAN for StickS3..." },
+                    { "removing_pairing", "Removing pairing..." },
+                    { "scanning_wifi", "Stick is scanning Wi-Fi..." },
+                    { "sending_wifi", "Sending Wi-Fi credentials..." },
+                    { "rc_working", "Updating Remote Control..." },
+                    { "starting_local_relay", "Starting built-in relay..." },
+                    { "stopping_local_relay", "Stopping built-in relay..." },
+                    { "saving_relay", "Saving relay URL..." },
+                    { "clearing_relay", "Clearing relay URL..." },
+                    { "syncing_stick", "Syncing relay to Stick..." },
+                    { "relay_synced", "Relay settings saved on Stick." },
+                    { "exporting_channels", "Reading channel keys..." },
+                    { "testing_relay", "Testing relay connection..." },
+                    { "applying_language", "Applying language..." },
+                    { "saving_settings", "Saving settings..." },
+                    { "opening_conv", "Opening Antigravity conversation..." },
+                    { "conv_opened", "Conversation opened in terminal." },
+                    { "select_project_first", "Select a project first." },
+                    { "prompt_saved", "Prompt saved on PC and synced to Stick." },
+                    { "select_saved_prompt", "Select a saved prompt first." },
+                    { "confirm_delete_prompt", "Delete the saved prompt?" },
+                    { "prompt_deleted", "Prompt deleted." },
+                    { "new_project_title", "New Project" },
+                    { "new_project_name_hint", "Folder name (leave blank for a random 2-word English name like solar-star):" },
+                    { "new_project_ide", "Target IDE" },
+                    { "cancel", "Cancel" },
+                    { "create", "Create" },
+                    { "save", "Save" },
+                    { "project_created", "Project created: {0}" },
+                    { "select_folder_rename", "Select a folder project to rename." },
+                    { "rename_project_title", "Rename Project" },
+                    { "rename_project_label", "New folder name:" },
+                    { "project_renamed", "Project renamed to {0}" },
+                    { "folder_saved", "Folder saved." },
+                    { "binding_saved", "Antigravity binding saved." },
+                    { "project_opened_stick", "Project opened on Stick." },
+                    { "select_project_on_stick", "Open a project on Stick first." },
+                    { "confirm_discard_prompt", "Switch project without saving the current prompt?" },
+                    { "opening_stick_project", "Opening project from Stick..." },
+                    { "project_synced", "Project synced from Stick." },
+                    { "accounts_refreshed", "Accounts refreshed." },
+                    { "account_switched", "Switched active Codex account." },
+                    { "login_launched", "Sign in inside the Codex login window — AgentDeck will add the account automatically." },
+                    { "account_removed", "Profile removed from AgentDeck." },
+                    { "rc_updated", "Remote Control status updated." },
+                    { "rc_active", "Active" },
+                    { "rc_inactive", "Inactive" },
+                    { "rc_registered", "Registered" },
+                    { "rc_not_registered", "Not registered" },
+                    { "unavailable", "Unavailable" },
+                    { "rc_desktop_connected", "Codex Desktop remote connected" },
+                    { "rc_daemon_running", "Remote-control daemon running" },
+                    { "rc_codex_idle", "Remote-control daemon not started." },
+                    { "rc_instance", "Instance" },
+                    { "rc_agy_idle", "Daemon is not registered." },
+                    { "local_relay_running", "Built-in relay running on 127.0.0.1:{0}" },
+                    { "local_relay_stopped", "Built-in relay stopped" },
+                    { "local_relay_started", "Built-in relay started on port 8793." },
+                    { "lang_saved", "Language saved." },
+                    { "lang_saved_synced", "Language saved and synced to StickS3." },
+                    { "settings_saved", "Settings saved." },
+                    { "stick_paired", "StickS3 paired successfully." },
+                    { "select_stick_enter_code", "Select a Stick and enter the pairing code." },
+                    { "no_sticks_found", "No StickS3 devices found on this network." },
+                    { "select_paired_stick", "Select a paired Stick first." },
+                    { "pairing_removed", "Pairing removed from PC." },
+                    { "stick_usb", "Stick via USB" },
+                    { "stick_remote", "Stick via Internet" },
+                    { "stick_wifi", "Stick via Wi-Fi" },
+                    { "bridge_ready", "Bridge Ready" },
+                    { "bridge_offline", "Bridge Offline" },
+                    { "waiting_stick", "Waiting for StickS3" },
+                    { "stick_no_wifi", "Stick without Wi-Fi" },
+                    { "internet", "Internet" },
+                    { "code_active", "Pairing code active" },
+                    { "state_queued", "Queued" },
+                    { "state_running", "Running" },
+                    { "state_finished", "Completed" },
+                    { "state_cancelled", "Stopped" },
+                    { "state_limit", "Rate limit" },
+                    { "state_error", "Error" },
+                    { "reading_session", "Reading session..." },
+                    { "select_session_prompt", "Select a session to read its output." },
+                    { "untitled_conv", "Untitled conversation. Open in Antigravity CLI." },
+                    { "full_answer_in_file", "Full output is saved in file." },
+                    { "connect_stick_first", "Connect a Stick first." },
+                    { "select_network", "Select a network from the list" },
+                    { "select_network_err", "Select a Wi-Fi network." },
+                    { "password_length_err", "Enter a password between 8 and 63 bytes." },
+                    { "stick_joining_wifi", "Stick is connecting to Wi-Fi..." },
+                    { "reading_networks", "Reading scanned networks..." },
+                    { "secured", "Secured" },
+                    { "open", "Open" },
+                    { "no_networks_found", "Stick found no networks." },
+                    { "scan_timeout", "No Wi-Fi scan reply from Stick." },
+                    { "wifi_connected", "Stick connected to Wi-Fi." },
+                    { "check_stick_screen", "Check the Wi-Fi status on Stick screen." },
+                    { "relay_saved", "Relay saved on PC. Push URL to Stick when ready." },
+                    { "pair_for_channels", "Pair Stick first to create channel keys." },
+                    { "channels_saved", "Channel keys exported for relay server." },
+                    { "relay_reachable", "Stick is reachable through the relay!" },
+                    { "relay_unreachable", "No response via relay. Check URL and Stick Wi-Fi." }
+                }
+            },
+            {
+                "pl", new Dictionary<string, string>
+                {
+                    { "window_title", "AgentDeck | Zdalne sterowanie AI IDE w Twojej kieszeni." },
+                    { "tagline", "Zdalne sterowanie AI IDE w Twojej kieszeni." },
+                    { "nav_prompts", "Projekty i prompty" },
+                    { "nav_sessions", "Sesje" },
+                    { "nav_accounts", "Konta" },
+                    { "nav_devices", "Urządzenia" },
+                    { "nav_wifi", "Wi-Fi" },
+                    { "nav_remote", "Remote Control" },
+                    { "nav_settings", "Ustawienia" },
+                    { "sub_prompts", "Projekty wczytane z wybranego IDE, szybkie losowe foldery i szablony promptów" },
+                    { "sub_sessions", "Przeglądaj aktywne i ukończone zadania oraz odpowiadaj na pytania agentów" },
+                    { "sub_accounts", "Automatycznie zapisane konta Codex (1-klik) oraz podgląd subskrypcji Antigravity" },
+                    { "sub_devices", "Paruj StickS3 i sprawdzaj poziom baterii oraz połączenie USB / Wi-Fi" },
+                    { "sub_wifi", "Konfiguruj sieci bezprzewodowe bezpośrednio na StickS3" },
+                    { "sub_remote", "Natywne Remote Control Codex i Antigravity + szyfrowany przekaźnik StickS3" },
+                    { "sub_settings", "Autostart pod Wake on LAN, wybór języka, folder nowych projektów i kreator" },
+                    { "projects_title", "Projekty z IDE" },
+                    { "filter_all", "Wszystkie" },
+                    { "btn_new_project", "+ Nowy projekt" },
+                    { "btn_rename", "Zmień nazwę" },
+                    { "btn_add_folder", "Dodaj folder" },
+                    { "btn_open_stick", "Otwórz na Sticku" },
+                    { "btn_sync_stick", "Wczytaj ze Sticka" },
+                    { "btn_bind_agy", "Powiąż z Antigravity" },
+                    { "global_projects_title", "Wszystkie projekty (globalne)" },
+                    { "global_projects_sub", "Dostępne w każdym projekcie na StickS3" },
+                    { "global_hint", "Prompty globalne są widoczne w każdym projekcie, także w losowych ze Sticka." },
+                    { "select_project", "Wybierz projekt" },
+                    { "both_ides", "Oba IDE" },
+                    { "both_short", "Oba" },
+                    { "suggested_title", "Proponowane szablony (kliknij, aby wczytać):" },
+                    { "prompt_name", "Nazwa promptu" },
+                    { "prompt_desc", "Krótki opis (co robi ten prompt)" },
+                    { "state_waiting_input", "Pytanie" },
+                    { "sending_answer", "Wysyłam odpowiedź do agenta..." },
+                    { "answer_sent", "Przekazano odpowiedź do agenta." },
+                    { "btn_save_prompt", "Zapisz prompt" },
+                    { "btn_new_prompt", "Nowy / wyczyść" },
+                    { "btn_delete", "Usuń" },
+                    { "sessions_title", "Ostatnie sesje ze Sticka" },
+                    { "btn_open_agy_cli", "Otwórz w Antigravity CLI" },
+                    { "btn_open_answer", "Otwórz plik odpowiedzi" },
+                    { "codex_accounts_title", "Konta Codex" },
+                    { "codex_accounts_desc", "Aktywne konto zapisuje się automatycznie. Dodaj kolejne logowanie i przełączaj jednym kliknięciem z PC lub Sticka." },
+                    { "btn_add_codex_account", "+ Dodaj konto Codex" },
+                    { "btn_switch_inline", "Przełącz" },
+                    { "agy_accounts_title", "Konto Antigravity" },
+                    { "agy_accounts_desc", "Antigravity używa Twojego konta Google bezpośrednio w IDE. Poniżej widoczny jest plan subskrypcji i limity AI." },
+                    { "btn_refresh_sub", "Odśwież subskrypcję" },
+                    { "agy_plan_fmt", "PLAN {0}" },
+                    { "agy_plan_active", "ZALOGOWANO" },
+                    { "credits_fmt", "{0} kredytów" },
+                    { "agy_quota_empty", "Kliknij Odśwież subskrypcję, aby pobrać aktualne limity Antigravity." },
+                    { "active_badge", "AKTYWNE" },
+                    { "not_signed_in", "Niezalogowano" },
+                    { "devices_title", "Sparowane i podłączone urządzenia" },
+                    { "stick_screen", "Ekran" },
+                    { "btn_show_code", "Pokaż kod na Sticku" },
+                    { "btn_pair_usb", "Sparuj przez USB" },
+                    { "btn_pair_usb_code", "USB z kodem" },
+                    { "btn_scan_lan", "Szukaj w sieci" },
+                    { "btn_forget", "Usuń parowanie" },
+                    { "pair_code_label", "Kod parowania ze Sticka" },
+                    { "btn_pair_wifi", "Sparuj Wi-Fi" },
+                    { "device_addr_label", "Adres IP Sticka (opcjonalnie)" },
+                    { "wifi_title", "Wi-Fi StickS3" },
+                    { "btn_scan_wifi", "Skanuj Wi-Fi na Sticku" },
+                    { "btn_join_wifi", "Połącz Stick" },
+                    { "codex_rc_title", "Codex Remote Control" },
+                    { "codex_rc_desc", "Uruchom oficjalnego demona Codex Remote Control, aby wysyłać prompty z telefonu lub Sticka poza domem." },
+                    { "btn_start_daemon", "Uruchom demona" },
+                    { "btn_pair_code", "Kod parowania" },
+                    { "btn_stop", "Zatrzymaj" },
+                    { "agy_rc_title", "Antigravity Remote Control" },
+                    { "agy_rc_desc", "Zarządzaj demonem Antigravity Remote Control, aby PC był dostępny w aplikacji mobilnej i zdalnych sesjach." },
+                    { "agy_rc_name_label", "Nazwa instancji (opcjonalnie)" },
+                    { "btn_refresh", "Odśwież" },
+                    { "relay_title", "Szyfrowany przekaźnik StickS3 poza domem" },
+                    { "relay_desc", "Łączy StickS3 z domowym PC przez hotspot za pomocą szyfrowania AES-256-GCM + HMAC. Uruchom wbudowany przekaźnik za tunelem." },
+                    { "btn_start_local_relay", "Uruchom lokalny przekaźnik (8793)" },
+                    { "btn_stop_local_relay", "Zatrzymaj przekaźnik" },
+                    { "relay_addr_label", "Adres przekaźnika (http://...)" },
+                    { "btn_save_url", "Zapisz adres" },
+                    { "btn_push_stick", "Przekaż na Stick" },
+                    { "btn_test_conn", "Testuj połączenie" },
+                    { "btn_export_channels", "Eksportuj klucze kanałów" },
+                    { "btn_clear_url", "Wyczyść adres" },
+                    { "settings_auto_title", "Autostart w tle i Wake on LAN" },
+                    { "settings_auto_desc", "Uruchamiaj cichy mostek AgentDeck przy starcie Windows (bez żadnego okna CMD), aby Wake on LAN i prompty ze Sticka zawsze działały." },
+                    { "enabled", "Włączony" },
+                    { "disabled", "Wyłączony" },
+                    { "autostart_on", "Autostart włączony (uruchamianie w tle bez okna CMD)." },
+                    { "autostart_off", "Autostart wyłączony." },
+                    { "settings_lang_title", "Język aplikacji" },
+                    { "settings_lang_desc", "Domyślnie ustawiony jest język angielski. Zmiana aktualizuje Windows i automatycznie synchronizuje StickS3." },
+                    { "btn_apply_lang", "Zastosuj język" },
+                    { "settings_projects_title", "Folder nowych projektów" },
+                    { "settings_projects_desc", "Nowe losowe projekty tworzone ze StickS3 (np. solar-star) lub w Windows powstają w tym katalogu." },
+                    { "btn_browse", "Przeglądaj..." },
+                    { "btn_save_folder", "Zapisz folder" },
+                    { "settings_about_title", "Kreator konfiguracji i foldery" },
+                    { "settings_about_desc", "AgentDeck v0.6 · Otwórz kreator pierwszego uruchomienia lub przejdź do folderów aplikacji i danych." },
+                    { "btn_open_wizard", "Uruchom kreator startowy" },
+                    { "btn_open_data", "Otwórz folder danych" },
+                    { "btn_open_app", "Otwórz folder aplikacji" },
+                    { "onb_step_badge", "Krok {0} z 3" },
+                    { "onb_step1_title", "Witaj w AgentDeck" },
+                    { "onb_step1_sub", "Wybierz preferowany język interfejsu w Windows oraz na StickS3." },
+                    { "onb_lang_prompt", "Język interfejsu" },
+                    { "onb_lang_en_sub", "Domyślny język angielski" },
+                    { "onb_lang_pl_sub", "Polski interfejs na PC i Sticku" },
+                    { "onb_step2_title", "Zawsze gotowy do Wake on LAN" },
+                    { "onb_step2_sub", "Potwierdź autostart w tle, aby PC odpowiadał od razu po wybudzeniu ze StickS3." },
+                    { "onb_auto_title", "Uruchamiaj AgentDeck po cichu z Windows" },
+                    { "onb_auto_desc", "Uruchamia w tle wyłącznie lekki mostek bez żadnego okna CMD, dzięki czemu Wake on LAN i prompty działają od razu po starcie." },
+                    { "onb_auto_hint", "Zalecane: komputer jest zawsze gotowy po wybudzeniu przez Wake on LAN." },
+                    { "onb_step3_title", "Połącz swoje StickS3" },
+                    { "onb_step3_sub", "Sparuj przez USB jednym kliknięciem, aby odblokować podgląd baterii, Wi-Fi i Wake on LAN." },
+                    { "onb_stick_usb_paired", "StickS3 podłączone i sparowane przez USB" },
+                    { "onb_stick_usb_unpaired", "Wykryto StickS3 na USB (nieparowane)" },
+                    { "onb_stick_wifi", "StickS3 połączone przez Wi-Fi" },
+                    { "onb_stick_missing", "StickS3 nie jest teraz podłączone przez USB" },
+                    { "onb_stick_ready_desc", "Twój StickS3 jest sparowany i gotowy. Kliknij Rozpocznij, aby wejść do aplikacji." },
+                    { "onb_stick_pair_desc", "Kliknij Sparuj przez USB poniżej, aby bezpiecznie powiązać PC ze StickS3." },
+                    { "onb_stick_wait_desc", "Podłącz StickS3 kablem USB-C, aby sparować teraz, albo zakończ i sparuj później w Urządzeniach." },
+                    { "onb_skip", "Pomiń" },
+                    { "onb_back", "Wstecz" },
+                    { "onb_continue", "Dalej" },
+                    { "onb_finish", "Rozpocznij" },
+                    { "ready", "Gotowe" },
+                    { "loading_projects", "Wczytuję projekty z IDE..." },
+                    { "saving_prompt", "Zapisuję prompt..." },
+                    { "deleting_prompt", "Usuwam prompt..." },
+                    { "creating_project", "Tworzę projekt..." },
+                    { "renaming_project", "Zmieniam nazwę projektu..." },
+                    { "select_project_folder", "Wybierz katalog projektu" },
+                    { "bind_agy_title", "Projekt Antigravity" },
+                    { "agy_project_id_label", "Identyfikator projektu Antigravity" },
+                    { "sending_project", "Otwieram projekt na Sticku..." },
+                    { "switching_account", "Przełączam konto Codex..." },
+                    { "launching_login", "Otwieram logowanie Codex..." },
+                    { "removing_account", "Usuwam profil konta..." },
+                    { "loading_accounts", "Odświeżam konta..." },
+                    { "opening_pairing", "Otwieram ekran parowania..." },
+                    { "enter_stick_code", "Wpisz kod wyświetlony na Sticku." },
+                    { "pairing_usb", "Paruję przez USB..." },
+                    { "checking_usb_code", "Sprawdzam kod USB..." },
+                    { "checking_wifi_code", "Sprawdzam kod Wi-Fi..." },
+                    { "scanning_lan", "Szukam Sticka w sieci..." },
+                    { "removing_pairing", "Usuwam parowanie..." },
+                    { "scanning_wifi", "Stick skanuje Wi-Fi..." },
+                    { "sending_wifi", "Przekazuję ustawienia Wi-Fi..." },
+                    { "rc_working", "Aktualizuję Remote Control..." },
+                    { "starting_local_relay", "Uruchamiam lokalny przekaźnik..." },
+                    { "stopping_local_relay", "Zatrzymuję lokalny przekaźnik..." },
+                    { "saving_relay", "Zapisuję adres przekaźnika..." },
+                    { "clearing_relay", "Czyszczę adres..." },
+                    { "syncing_stick", "Synchronizuję Stick..." },
+                    { "relay_synced", "Zapisano ustawienia przekaźnika na Sticku." },
+                    { "exporting_channels", "Odczytuję klucze kanałów..." },
+                    { "testing_relay", "Testuję połączenie przekaźnika..." },
+                    { "applying_language", "Zmieniam język..." },
+                    { "saving_settings", "Zapisuję ustawienia..." },
+                    { "opening_conv", "Otwieram rozmowę Antigravity..." },
+                    { "conv_opened", "Rozmowa otwarta w terminalu." },
+                    { "select_project_first", "Najpierw wybierz projekt." },
+                    { "prompt_saved", "Prompt zapisany na PC i dostępny na Sticku." },
+                    { "select_saved_prompt", "Wybierz zapisany prompt." },
+                    { "confirm_delete_prompt", "Usunąć zapisany prompt?" },
+                    { "prompt_deleted", "Prompt usunięty." },
+                    { "new_project_title", "Nowy projekt" },
+                    { "new_project_name_hint", "Nazwa folderu (zostaw puste, aby wylosować dwuwyrazową nazwę np. solar-star):" },
+                    { "new_project_ide", "Docelowe IDE" },
+                    { "cancel", "Anuluj" },
+                    { "create", "Utwórz" },
+                    { "save", "Zapisz" },
+                    { "project_created", "Utworzono projekt: {0}" },
+                    { "select_folder_rename", "Wybierz folder projektu do zmiany nazwy." },
+                    { "rename_project_title", "Zmień nazwę projektu" },
+                    { "rename_project_label", "Nowa nazwa folderu:" },
+                    { "project_renamed", "Zmieniono nazwę projektu na {0}" },
+                    { "folder_saved", "Folder zapisany." },
+                    { "binding_saved", "Powiązanie Antigravity zapisane." },
+                    { "project_opened_stick", "Projekt otwarty na Sticku." },
+                    { "select_project_on_stick", "Wybierz projekt na Sticku." },
+                    { "confirm_discard_prompt", "Zmienić projekt bez zapisu bieżącego promptu?" },
+                    { "opening_stick_project", "Otwieram projekt ze Sticka..." },
+                    { "project_synced", "Projekt zsynchronizowany." },
+                    { "accounts_refreshed", "Odświeżono konta." },
+                    { "account_switched", "Przełączono aktywne konto Codex." },
+                    { "login_launched", "Zaloguj się w oknie Codex — AgentDeck automatycznie doda konto do listy." },
+                    { "account_removed", "Usunięto profil konta." },
+                    { "rc_updated", "Zaktualizowano status Remote Control." },
+                    { "rc_active", "Aktywny" },
+                    { "rc_inactive", "Nieaktywny" },
+                    { "rc_registered", "Zarejestrowany" },
+                    { "rc_not_registered", "Niezarejestrowany" },
+                    { "unavailable", "Niedostępny" },
+                    { "rc_desktop_connected", "Połączono zdalny Codex Desktop" },
+                    { "rc_daemon_running", "Demon remote-control działa" },
+                    { "rc_codex_idle", "Demon remote-control jest zatrzymany." },
+                    { "rc_instance", "Instancja" },
+                    { "rc_agy_idle", "Demon nie jest zarejestrowany." },
+                    { "local_relay_running", "Lokalny przekaźnik działa na 127.0.0.1:{0}" },
+                    { "local_relay_stopped", "Lokalny przekaźnik zatrzymany" },
+                    { "local_relay_started", "Uruchomiono lokalny przekaźnik na porcie 8793." },
+                    { "lang_saved", "Zapisano język." },
+                    { "lang_saved_synced", "Zapisano język i zsynchronizowano ze Stickiem." },
+                    { "settings_saved", "Zapisano ustawienia." },
+                    { "stick_paired", "StickS3 został sparowany." },
+                    { "select_stick_enter_code", "Wybierz Stick i wpisz kod z ekranu." },
+                    { "no_sticks_found", "Brak Sticków w tej sieci." },
+                    { "select_paired_stick", "Wybierz sparowany Stick." },
+                    { "pairing_removed", "Parowanie usunięte z PC." },
+                    { "stick_usb", "Stick przez USB" },
+                    { "stick_remote", "Stick przez internet" },
+                    { "stick_wifi", "Stick przez Wi-Fi" },
+                    { "bridge_ready", "Mostek gotowy" },
+                    { "bridge_offline", "Mostek niedostępny" },
+                    { "waiting_stick", "Oczekiwanie na StickS3" },
+                    { "stick_no_wifi", "Stick bez Wi-Fi" },
+                    { "internet", "Internet" },
+                    { "code_active", "Kod aktywny" },
+                    { "state_queued", "W kolejce" },
+                    { "state_running", "Pracuje" },
+                    { "state_finished", "Ukończono" },
+                    { "state_cancelled", "Zatrzymano" },
+                    { "state_limit", "Limit konta" },
+                    { "state_error", "Błąd" },
+                    { "reading_session", "Odczytuję sesję..." },
+                    { "select_session_prompt", "Wybierz sesję, aby przeczytać odpowiedź." },
+                    { "untitled_conv", "Rozmowa bez tytułu. Otwórz w Antigravity CLI." },
+                    { "full_answer_in_file", "Pełna odpowiedź jest w pliku." },
+                    { "connect_stick_first", "Podłącz Stick." },
+                    { "select_network", "Wybierz sieć z listy" },
+                    { "select_network_err", "Wybierz sieć." },
+                    { "password_length_err", "Wpisz hasło od 8 do 63 bajtów." },
+                    { "stick_joining_wifi", "Stick łączy się z siecią..." },
+                    { "reading_networks", "Odczytuję sieci..." },
+                    { "secured", "Hasło" },
+                    { "open", "Otwarta" },
+                    { "no_networks_found", "Stick nie znalazł sieci." },
+                    { "scan_timeout", "Brak odpowiedzi na skan." },
+                    { "wifi_connected", "Stick połączył się z siecią." },
+                    { "check_stick_screen", "Sprawdź stan sieci na ekranie Sticka." },
+                    { "relay_saved", "Zapisano na PC. Przekaż adres na Stick." },
+                    { "pair_for_channels", "Sparuj Stick, aby utworzyć kanały." },
+                    { "channels_saved", "Zapisano kanały dla serwera przekaźnika." },
+                    { "relay_reachable", "Stick odpowiada przez przekaźnik." },
+                    { "relay_unreachable", "Brak odpowiedzi przez przekaźnik. Sprawdź adres i Wi-Fi." }
+                }
+            }
+        };
+    }
+}

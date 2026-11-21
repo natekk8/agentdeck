@@ -1,0 +1,1202 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="AgentDeck | Remote AI IDE control in your pocket." Width="1260" Height="800" MinWidth="1040" MinHeight="680"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
+        Background="#080B12" Foreground="#F4F7FB"
+        FontFamily="Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI" FontSize="13.5" UseLayoutRounding="True">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="46" CornerRadius="14" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
+  </shell:WindowChrome.WindowChrome>
+
+  <Window.Resources>
+    <SolidColorBrush x:Key="Bg" Color="#080B12"/>
+    <SolidColorBrush x:Key="Sidebar" Color="#0C101B"/>
+    <SolidColorBrush x:Key="Panel" Color="#111623"/>
+    <SolidColorBrush x:Key="PanelAlt" Color="#161D2E"/>
+    <SolidColorBrush x:Key="InputBg" Color="#090D16"/>
+    <SolidColorBrush x:Key="Line" Color="#1C2438"/>
+    <SolidColorBrush x:Key="LineBright" Color="#283552"/>
+    <SolidColorBrush x:Key="Text" Color="#F4F7FB"/>
+    <SolidColorBrush x:Key="Muted" Color="#8E9BB3"/>
+    <SolidColorBrush x:Key="Accent" Color="#5F8BFF"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#799FFF"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#172447"/>
+    <SolidColorBrush x:Key="Mint" Color="#34D399"/>
+    <SolidColorBrush x:Key="MintDark" Color="#0F2D24"/>
+    <SolidColorBrush x:Key="Blue" Color="#60A5FA"/>
+    <SolidColorBrush x:Key="Amber" Color="#FBBF24"/>
+    <SolidColorBrush x:Key="Coral" Color="#FB7185"/>
+
+    <Style TargetType="TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Width" Value="7"/>
+      <Setter Property="MinWidth" Value="7"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Grid Background="Transparent">
+              <Track Name="PART_Track" IsDirectionReversed="True">
+                <Track.Thumb>
+                  <Thumb>
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Border Background="#26314A" CornerRadius="3.5" Margin="1,2"/>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="Orientation" Value="Horizontal">
+          <Setter Property="Height" Value="7"/>
+          <Setter Property="MinHeight" Value="7"/>
+          <Setter Property="Width" Value="Auto"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="Button">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Background" Value="#171E30"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
+      <Setter Property="Padding" Value="15,8"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#5F8BFF"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1D2740"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.78"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#5F8BFF"/>
+      <Setter Property="Foreground" Value="#FFFFFF"/>
+      <Setter Property="BorderBrush" Value="#739BFF"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="Background" Value="#799FFF"/>
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#9AB8FF"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.82"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#25131B"/>
+      <Setter Property="Foreground" Value="#FDA4AF"/>
+      <Setter Property="BorderBrush" Value="#4C1D2D"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#FB7185"/>
+                <Setter TargetName="Tile" Property="Background" Value="#361925"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="PillBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Padding" Value="12,5"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Margin" Value="0,0,6,0"/>
+    </Style>
+
+    <Style x:Key="ChromeBtn" TargetType="Button">
+      <Setter Property="Width" Value="32"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="Foreground" Value="#94A3B8"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Margin" Value="2,0,0,0"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="Background" Value="#1D2539"/>
+                <Setter Property="Foreground" Value="#F4F7FB"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="ChromeCloseBtn" TargetType="Button" BasedOn="{StaticResource ChromeBtn}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="Background" Value="#7F1D2E"/>
+                <Setter Property="Foreground" Value="#FFFFFF"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="Nav" TargetType="Button">
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Margin" Value="0,0,0,5"/>
+      <Setter Property="Padding" Value="13,10"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="11" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="Background" Value="#141C2E"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Apple-style Pill ToggleSwitch -->
+    <Style x:Key="AppleSwitch" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Width" Value="46"/>
+      <Setter Property="Height" Value="26"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Border x:Name="Track" Width="46" Height="26" CornerRadius="13" Background="#252F47" BorderBrush="#344263" BorderThickness="1">
+              <Border x:Name="Thumb" Width="20" Height="20" CornerRadius="10" Background="#E2E8F0"
+                      HorizontalAlignment="Left" Margin="2,0,2,0"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Track" Property="Background" Value="#5F8BFF"/>
+                <Setter TargetName="Track" Property="BorderBrush" Value="#82A6FF"/>
+                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                <Setter TargetName="Thumb" Property="Background" Value="#FFFFFF"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="TextBox">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Background" Value="{StaticResource InputBg}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
+      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Box" Property="BorderBrush" Value="#5F8BFF"/>
+              </Trigger>
+              <Trigger Property="IsReadOnly" Value="True">
+                <Setter TargetName="Box" Property="Background" Value="#0A0E18"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="PasswordBox">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Background" Value="{StaticResource InputBg}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
+      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="PasswordBox">
+            <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ScrollViewer x:Name="PART_ContentHost"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Box" Property="BorderBrush" Value="#5F8BFF"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Box" Property="Opacity" Value="0.42"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Background" Value="#141B2D"/>
+      <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            Focusable="False" ClickMode="Press" Foreground="{TemplateBinding Foreground}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Toggle" Background="#141B2D" BorderBrush="#283552" BorderThickness="1" CornerRadius="10" Padding="12,8">
+                      <TextBlock Text="⌄" HorizontalAlignment="Right" Foreground="#8E9BB3"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Toggle" Property="BorderBrush" Value="#5F8BFF"/>
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter Margin="12,8,28,8" IsHitTestVisible="False"
+                                Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
+              <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True">
+                <Border Background="#121829" BorderBrush="#2B3A5A" BorderThickness="1" CornerRadius="10" Margin="0,5,0,0"
+                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="265">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="Option" Padding="{TemplateBinding Padding}" CornerRadius="7" Margin="3,2">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="Option" Property="Background" Value="#1B2848"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ListBox">
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Background" Value="{StaticResource InputBg}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="5"/>
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+
+    <Style TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Item" Margin="2,2" CornerRadius="10" Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Item" Property="Background" Value="#141C2E"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Item" Property="Background" Value="#172444"/>
+                <Setter TargetName="Item" Property="BorderBrush" Value="#3D5CA8"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="{StaticResource Panel}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Padding" Value="20"/>
+    </Style>
+
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="Margin" Value="0,0,0,5"/>
+    </Style>
+  </Window.Resources>
+
+  <Border Name="MainContainer" BorderBrush="#1C2438" BorderThickness="1" CornerRadius="12" Background="{StaticResource Bg}">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="264"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Sidebar -->
+      <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0" CornerRadius="12,0,0,12">
+        <DockPanel Margin="20,22,20,20" LastChildFill="False">
+          <StackPanel DockPanel.Dock="Top">
+            <!-- Brand Header -->
+            <Grid Margin="2,0,2,24">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="46"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Border Width="46" Height="46" CornerRadius="12" Background="#121829" BorderBrush="#232E4A" BorderThickness="1" Padding="3">
+                <Grid>
+                  <Image Name="BrandLogo" Stretch="Uniform" Visibility="Collapsed"/>
+                  <Viewbox Name="BrandFallback">
+                    <Canvas Width="1024" Height="1024">
+                      <Path Data="M225.019 348.676C200.248 298.052 247.243 242.046 301.4 257.649L788.018 397.852C833.201 410.87 850.04 466.072 819.816 502.092L555.77 816.77C525.546 852.789 468.258 845.792 447.592 803.556L225.019 348.676Z">
+                        <Path.Fill>
+                          <RadialGradientBrush MappingMode="RelativeToBoundingBox" GradientOrigin="0.20,0.22" Center="0.30,0.32" RadiusX="0.85" RadiusY="0.85">
+                            <GradientStop Color="#81A6F8" Offset="0"/>
+                            <GradientStop Color="#10082C" Offset="1"/>
+                          </RadialGradientBrush>
+                        </Path.Fill>
+                      </Path>
+                      <Path Data="M377.121 358.488L385.45 375.526L402.488 367.197L410.817 384.234L427.854 375.905L436.183 392.942L453.22 384.614L461.549 401.651L444.512 409.98L452.841 427.017L435.803 435.346L444.132 452.384L427.095 460.713L435.424 477.75L316.162 536.052L299.504 501.978L333.579 485.32L308.592 434.208L274.517 450.865L257.859 416.791L377.121 358.488ZM342.667 417.55L367.654 468.662L401.728 452.004L393.4 434.967L410.437 426.638L402.108 409.6L385.071 417.929L376.742 400.892L342.667 417.55ZM494.887 469.845L544.86 572.069L527.823 580.398L536.152 597.436L399.852 664.067L391.524 647.03L374.486 655.359L324.513 553.134L494.887 469.845ZM408.94 596.297L417.269 613.334L485.419 580.019L477.09 562.981L494.127 554.652L477.47 520.578L375.245 570.551L391.903 604.626L408.94 596.297Z" Fill="White"/>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+              <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="AgentDeck" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                  <Border Background="#18223A" BorderBrush="#2C3E66" BorderThickness="1" CornerRadius="6" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Name="VersionBadge" Text="v0.6" FontSize="10.5" FontWeight="SemiBold" Foreground="#93B4FF"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Name="BrandTagline" Text="Remote AI IDE control in your pocket." FontSize="11"
+                           Foreground="#81A6F8" TextWrapping="Wrap" Margin="0,3,0,0"/>
+              </StackPanel>
+            </Grid>
+
+            <!-- Navigation -->
+            <Button Name="NavPrompts" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M3,5 H9 L11,7 H21 V19 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavPromptsText" Text="Projects &amp; Prompts" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavSessions" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M4,5 H20 V17 H8 L4,20 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavSessionsText" Text="Sessions" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavAccounts" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M12,12 A4,4 0 1,0 12,4 A4,4 0 1,0 12,12 M4,20 C4,16 8,14 12,14 C16,14 20,16 20,20" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavAccountsText" Text="Accounts" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavDevices" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M7,3 H17 V21 H7 Z M10,18 H14" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavDevicesText" Text="Devices" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavWifi" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M2,9 C8,4 16,4 22,9 M5,13 C9,9.5 15,9.5 19,13 M9,17 C11,15.5 13,15.5 15,17 M12,20 L12,20.2" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavWifiText" Text="Wi-Fi" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavRemote" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M12,2 A10,10 0 1,0 12,22 A10,10 0 1,0 12,2 M2,12 H22 M12,2 C15,6 15,18 12,22" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavRemoteText" Text="Remote Control" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+            <Button Name="NavSettings" Style="{StaticResource Nav}">
+              <StackPanel Orientation="Horizontal">
+                <Path Data="M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 M4,12 L2,12 M22,12 L20,12 M12,4 L12,2 M12,22 L12,20" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                <TextBlock Name="NavSettingsText" Text="Settings" FontWeight="Medium"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+
+          <!-- Bottom Live Stick Status + Battery Card -->
+          <Border DockPanel.Dock="Bottom" Background="#111726" BorderBrush="#212C44" BorderThickness="1" CornerRadius="14" Padding="14">
+            <StackPanel>
+              <DockPanel Margin="0,0,0,6">
+                <Border Name="SidebarBatteryBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A"
+                        BorderThickness="1" CornerRadius="6" Padding="7,2" Visibility="Collapsed">
+                  <TextBlock Name="SidebarBatteryText" Text="100%" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}"/>
+                </Border>
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse Name="LinkDot" Width="8" Height="8" Fill="#34D399" Margin="0,0,8,0"/>
+                  <TextBlock Name="LinkStatus" Text="Connecting..." FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource Mint}"/>
+                </StackPanel>
+              </DockPanel>
+              <ProgressBar Name="SidebarBatteryBar" Height="4" Minimum="0" Maximum="100" Value="0"
+                           Foreground="#34D399" Background="#1A2236" BorderThickness="0" Margin="0,0,0,7" Visibility="Collapsed"/>
+              <TextBlock Name="Context" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource Muted}" Text="Waiting for StickS3"/>
+            </StackPanel>
+          </Border>
+        </DockPanel>
+      </Border>
+
+      <!-- Main Content Column -->
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="46"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Custom Apple-style Window Titlebar -->
+        <DockPanel Margin="28,10,16,0" LastChildFill="True">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Button Name="WinMinBtn" Style="{StaticResource ChromeBtn}" Content="─" FontSize="11" ToolTip="Minimize"/>
+            <Button Name="WinMaxBtn" Style="{StaticResource ChromeBtn}" Content="▢" FontSize="11" ToolTip="Maximize"/>
+            <Button Name="WinCloseBtn" Style="{StaticResource ChromeCloseBtn}" Content="✕" FontSize="11.5" ToolTip="Close"/>
+          </StackPanel>
+          <TextBlock Text="" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Main Workspace -->
+        <Grid Grid.Row="1" Margin="28,4,28,22">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- Page Header -->
+          <StackPanel Margin="0,0,0,18">
+            <TextBlock Name="Heading" FontSize="26" FontWeight="Bold" Text="Projects &amp; Prompts"/>
+            <TextBlock Name="SubHeading" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,4,0,0"
+                       Text="Manage IDE-synced projects, quick random workspaces, and prompt templates"/>
+          </StackPanel>
+
+          <!-- Page Body -->
+          <Grid Name="Body" Grid.Row="1">
+            <!-- 1. Projects & Prompts -->
+            <Grid Name="Prompts">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="346"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <Border Style="{StaticResource Card}">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <TextBlock Name="ProjectsTitle" Style="{StaticResource SectionTitle}" Text="IDE Projects"/>
+                    <WrapPanel Margin="0,0,0,10">
+                      <Button Name="FilterAll" Style="{StaticResource PillBtn}" Content="All"/>
+                      <Button Name="FilterAgy" Style="{StaticResource PillBtn}" Content="Antigravity"/>
+                      <Button Name="FilterCodex" Style="{StaticResource PillBtn}" Content="Codex"/>
+                    </WrapPanel>
+                    <WrapPanel>
+                      <Button Name="NewProjectBtn" Style="{StaticResource PrimaryBtn}" Padding="12,6" FontSize="12.5" Content="+ New Project"/>
+                      <Button Name="RenameProjectBtn" Padding="12,6" FontSize="12.5" Content="Rename"/>
+                      <Button Name="AddProject" Padding="12,6" FontSize="12.5" Content="Add Folder" Margin="0"/>
+                    </WrapPanel>
+                  </StackPanel>
+
+                  <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                      </Grid.ColumnDefinitions>
+                      <Button Name="ShowProject" Content="Open on Stick" Margin="0" FontSize="12" Padding="8,7"/>
+                      <Button Name="UseProject" Grid.Column="2" Content="Sync from Stick" Margin="0" FontSize="12" Padding="8,7"/>
+                    </Grid>
+                    <Button Name="BindProject" Content="Bind Antigravity ID" Margin="0,8,0,0" FontSize="12" Padding="8,7"/>
+                  </StackPanel>
+
+                  <ListBox Name="ProjectList">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ToolTip="{Binding Path}">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+                          <StackPanel>
+                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                            <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10" FontWeight="Bold"/>
+                          </Border>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+              </Border>
+
+              <Border Grid.Column="2" Style="{StaticResource Card}">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="124"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+
+                  <StackPanel Margin="0,0,0,10">
+                    <TextBlock Name="ProjectHeading" Style="{StaticResource SectionTitle}" Margin="0" Text="Select a project"/>
+                    <TextBlock Name="ProjectSubPath" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                  </StackPanel>
+
+                  <ListBox Name="PromptList" Grid.Row="1">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+                          <StackPanel>
+                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                            <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="SemiBold"/>
+                          </Border>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+
+                  <StackPanel Grid.Row="2" Margin="0,12,0,4">
+                    <TextBlock Name="SuggestedTitle" Style="{StaticResource FieldLabel}" Text="Suggested templates (click to load):"/>
+                    <WrapPanel Name="TemplateChips"/>
+                  </StackPanel>
+
+                  <DockPanel Grid.Row="3" Margin="0,8,0,6">
+                    <TextBlock Name="PromptTitleLabel" DockPanel.Dock="Left" Style="{StaticResource FieldLabel}" Margin="0" Text="Prompt Name"/>
+                    <ComboBox Name="Provider" DockPanel.Dock="Right" Width="170">
+                      <ComboBoxItem Name="ProviderBoth" Content="Both IDEs" Tag=""/>
+                      <ComboBoxItem Name="ProviderCodex" Content="Codex" Tag="codex"/>
+                      <ComboBoxItem Name="ProviderAgy" Content="Antigravity" Tag="agy"/>
+                    </ComboBox>
+                  </DockPanel>
+
+                  <TextBox Name="PromptTitle" Grid.Row="4" MaxLength="64" Margin="0,0,0,8" AutomationProperties.Name="Prompt Name"/>
+
+                  <StackPanel Grid.Row="5" Margin="0,0,0,8">
+                    <TextBlock Name="PromptDescLabel" Style="{StaticResource FieldLabel}" Text="Short description (what this prompt does)"/>
+                    <TextBox Name="PromptDescription" MaxLength="160" AutomationProperties.Name="Prompt Description"/>
+                  </StackPanel>
+
+                  <TextBox Name="PromptText" Grid.Row="6" MaxLength="32000" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
+                           VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Prompt Content"/>
+
+                  <DockPanel Grid.Row="7" Margin="0,14,0,0">
+                    <WrapPanel DockPanel.Dock="Left">
+                      <Button Name="SavePrompt" Style="{StaticResource PrimaryBtn}" Content="Save Prompt"/>
+                      <Button Name="NewPrompt" Content="Clear / New"/>
+                      <Button Name="DeletePrompt" Style="{StaticResource DangerBtn}" Content="Delete"/>
+                    </WrapPanel>
+                    <TextBlock Name="GlobalPromptHint" DockPanel.Dock="Right" FontSize="11.5" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" Text=""/>
+                  </DockPanel>
+                </Grid>
+              </Border>
+            </Grid>
+
+            <!-- 2. Sessions -->
+            <Border Name="Sessions" Style="{StaticResource Card}" Visibility="Collapsed">
+              <DockPanel>
+                <TextBlock Name="SessionsTitle" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Text="Recent Stick Sessions"/>
+                <ListBox Name="SessionList" DockPanel.Dock="Top" Height="175" Margin="0,0,0,12">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*"/>
+                          <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                          <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="11" FontWeight="SemiBold"/>
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                  <Button Name="OpenConversation" Style="{StaticResource PrimaryBtn}" Content="Open in Antigravity CLI" IsEnabled="False"/>
+                  <Button Name="OpenAnswer" Content="Open Output File" IsEnabled="False"/>
+                </WrapPanel>
+                <TextBlock Name="SessionLocation" DockPanel.Dock="Top" Foreground="{StaticResource Muted}"
+                           TextWrapping="Wrap" Margin="0,0,0,8" Text="Select a session to read its output."/>
+                <Border Name="QuestionPanel" DockPanel.Dock="Top" Background="#122136" BorderBrush="#2C5282" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10" Visibility="Collapsed">
+                  <StackPanel>
+                    <TextBlock Name="QuestionHeader" FontWeight="Bold" Foreground="{StaticResource Mint}" FontSize="12.5"/>
+                    <TextBlock Name="QuestionText" TextWrapping="Wrap" Foreground="{StaticResource Text}" Margin="0,4,0,10"/>
+                    <WrapPanel Name="QuestionOptions"/>
+                  </StackPanel>
+                </Border>
+                <TextBox Name="SessionAnswer" IsReadOnly="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
+                         VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Session Output"/>
+              </DockPanel>
+            </Border>
+
+            <!-- 3. Accounts -->
+            <Grid Name="Accounts" Visibility="Collapsed">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <!-- Codex Accounts -->
+              <Border Style="{StaticResource Card}">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <DockPanel Margin="0,0,0,8">
+                      <TextBlock Name="CodexAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Accounts"/>
+                      <Border Name="CodexActiveBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="8" Padding="9,4" HorizontalAlignment="Right">
+                        <TextBlock Name="CodexActiveText" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
+                      </Border>
+                    </DockPanel>
+                    <TextBlock Name="CodexAccountsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                               Text="Your active Codex login is detected and saved automatically. Add more accounts below and switch in one click from PC or StickS3."/>
+                  </StackPanel>
+
+                  <WrapPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                    <Button Name="LoginCodexAccount" Style="{StaticResource PrimaryBtn}" Content="+ Add Codex Account"/>
+                    <Button Name="RefreshAccountsBtn" Content="Refresh"/>
+                  </WrapPanel>
+
+                  <ListBox Name="CodexAccountList">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+                          <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" Margin="8,0,6,0"
+                                  VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                            <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="Bold"/>
+                          </Border>
+                          <Button Grid.Column="1" Tag="switch" CommandParameter="{Binding Id}" Content="{Binding ActionLabel}"
+                                  Margin="8,0,6,0" Padding="11,5" FontSize="12" Visibility="{Binding ActionVisibility}"
+                                  Background="#1B2848" BorderBrush="#4162B5"/>
+                          <Button Grid.Column="2" Tag="delete" CommandParameter="{Binding Id}" Content="✕"
+                                  Margin="0" Padding="9,5" FontSize="11.5" Background="#25131B" BorderBrush="#4C1D2D" Foreground="#FDA4AF"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+              </Border>
+
+              <!-- Antigravity Account + Subscription -->
+              <Border Grid.Column="2" Style="{StaticResource Card}">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                    <DockPanel Margin="0,0,0,8">
+                      <TextBlock Name="AgyAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Account"/>
+                      <Border Name="AgyActiveBadge" DockPanel.Dock="Right" Background="#12233E" BorderBrush="#294F88" BorderThickness="1" CornerRadius="8" Padding="9,4" HorizontalAlignment="Right">
+                        <TextBlock Name="AgyActiveText" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Blue}" Text="Checking..."/>
+                      </Border>
+                    </DockPanel>
+                    <TextBlock Name="AgyAccountsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Antigravity uses your Google account directly inside Antigravity. Active plan tier and weekly AI quotas are synced below."/>
+
+                    <!-- Subscription & Quota Card -->
+                    <Border Name="AgySubCard" Background="#0B0F19" BorderBrush="#24314D" BorderThickness="1" CornerRadius="14" Padding="15">
+                      <StackPanel>
+                        <DockPanel Margin="0,0,0,8">
+                          <Border Name="AgyPlanBadge" DockPanel.Dock="Left" Background="#19284F" BorderBrush="#4E77E6" BorderThickness="1" CornerRadius="7" Padding="9,3">
+                            <TextBlock Name="AgyPlanText" FontSize="11.5" FontWeight="Bold" Foreground="#94B5FF" Text="PRO PLAN"/>
+                          </Border>
+                          <TextBlock Name="AgyCreditsText" DockPanel.Dock="Right" HorizontalAlignment="Right" FontSize="12"
+                                     FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="0 credits"/>
+                        </DockPanel>
+                        <TextBlock Name="AgyQuotaText" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap"
+                                   Text="Checking quota..."/>
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+
+                  <WrapPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                    <Button Name="RefreshAgyBtn" Style="{StaticResource PrimaryBtn}" Content="Refresh Subscription"/>
+                  </WrapPanel>
+
+                  <ListBox Name="AgyAccountList">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+                          <StackPanel>
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                            <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="Bold"/>
+                          </Border>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+              </Border>
+            </Grid>
+
+            <!-- 4. Devices -->
+            <Border Name="Devices" Style="{StaticResource Card}" Visibility="Collapsed">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="*"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Name="DevicesTitle" Style="{StaticResource SectionTitle}" Text="Paired &amp; Connected Devices"/>
+                <ListBox Name="DeviceList" Grid.Row="1">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*"/>
+                          <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                          <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="11" FontWeight="SemiBold"/>
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <WrapPanel Grid.Row="2" Margin="0,14,0,14">
+                  <Button Name="ShowCode" Content="Show Code on Stick"/>
+                  <Button Name="PairUsb" Style="{StaticResource PrimaryBtn}" Content="Pair via USB"/>
+                  <Button Name="PairUsbCode" Content="USB with Code"/>
+                  <Button Name="FindDevices" Content="Scan LAN"/>
+                  <Button Name="ForgetDevice" Style="{StaticResource DangerBtn}" Content="Remove Pairing"/>
+                </WrapPanel>
+                <Grid Grid.Row="3">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <TextBlock Name="PairCodeLabel" Style="{StaticResource FieldLabel}" Text="Pairing code shown on Stick"/>
+                    <WrapPanel>
+                      <TextBox Name="PairCode" Width="168" MaxLength="24" FontFamily="Consolas" Margin="0,0,8,0"/>
+                      <Button Name="PairLan" Style="{StaticResource PrimaryBtn}" Content="Pair Wi-Fi" Margin="0"/>
+                    </WrapPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Name="DeviceAddressLabel" Style="{StaticResource FieldLabel}" Text="Stick IP Address (optional)"/>
+                    <TextBox Name="DeviceAddress"/>
+                  </StackPanel>
+                </Grid>
+              </Grid>
+            </Border>
+
+            <!-- 5. Wi-Fi -->
+            <Border Name="Wifi" Style="{StaticResource Card}" Visibility="Collapsed">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Top">
+                  <TextBlock Name="WifiTitle" Style="{StaticResource SectionTitle}" Text="StickS3 Wi-Fi"/>
+                  <WrapPanel Margin="0,0,0,8">
+                    <ComboBox Name="WifiDevice" Width="300" Margin="0,0,8,0"/>
+                    <Button Name="ScanWifi" Style="{StaticResource PrimaryBtn}" Content="Scan Wi-Fi on Stick"/>
+                  </WrapPanel>
+                  <TextBlock Name="WifiStatus" Foreground="{StaticResource Muted}" Margin="0,0,0,12"/>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                  <TextBlock Name="NetworkName" Style="{StaticResource FieldLabel}" Text="Select a network from the list"/>
+                  <WrapPanel>
+                    <PasswordBox Name="WifiPassword" IsEnabled="False" Width="260" Margin="0,0,8,0" AutomationProperties.Name="Wi-Fi Password"/>
+                    <Button Name="JoinWifi" Style="{StaticResource PrimaryBtn}" Content="Connect Stick"/>
+                  </WrapPanel>
+                </StackPanel>
+                <ListBox Name="NetworkList"/>
+              </DockPanel>
+            </Border>
+
+            <!-- 6. Remote Control -->
+            <ScrollViewer Name="Remote" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+              <StackPanel>
+                <Grid Margin="0,0,0,18">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+
+                  <!-- Codex Remote Control -->
+                  <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                      <DockPanel Margin="0,0,0,8">
+                        <TextBlock Name="CodexRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Remote Control"/>
+                        <Border DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                          <TextBlock Name="CodexRcStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
+                        </Border>
+                      </DockPanel>
+                      <TextBlock Name="CodexRcDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                                 Text="Enable official Codex Remote Control daemon to send prompts from mobile or StickS3 outside your home network."/>
+                      <TextBlock Name="CodexRcDetail" FontSize="12" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                      <WrapPanel Margin="0,0,0,10">
+                        <Button Name="CodexRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon"/>
+                        <Button Name="CodexRcPair" Content="Pairing Code"/>
+                        <Button Name="CodexRcStop" Style="{StaticResource DangerBtn}" Content="Stop"/>
+                      </WrapPanel>
+                      <TextBox Name="CodexRcOutput" IsReadOnly="True" Visibility="Collapsed" FontFamily="Consolas" FontSize="12"/>
+                    </StackPanel>
+                  </Border>
+
+                  <!-- Antigravity Remote Control -->
+                  <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                      <DockPanel Margin="0,0,0,8">
+                        <TextBlock Name="AgyRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Remote Control"/>
+                        <Border DockPanel.Dock="Right" Background="#12233E" BorderBrush="#294F88" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                          <TextBlock Name="AgyRcStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Blue}" Text="Checking..."/>
+                        </Border>
+                      </DockPanel>
+                      <TextBlock Name="AgyRcDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                                 Text="Manage the Antigravity remote-control background daemon so your PC appears in mobile and remote sessions."/>
+                      <TextBlock Name="AgyRcDetail" FontSize="12" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                      <TextBlock Name="AgyRcNameLabel" Style="{StaticResource FieldLabel}" Text="Instance name (optional)"/>
+                      <TextBox Name="AgyRcName" MaxLength="48" Margin="0,0,0,12"/>
+                      <WrapPanel>
+                        <Button Name="AgyRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon"/>
+                        <Button Name="AgyRcStop" Style="{StaticResource DangerBtn}" Content="Stop"/>
+                        <Button Name="RefreshRemoteBtn" Content="Refresh"/>
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                </Grid>
+
+                <!-- StickS3 Encrypted Relay / Tunnel -->
+                <Border Style="{StaticResource Card}">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                      <TextBlock Name="RelayTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="StickS3 Away-From-Home Encrypted Relay"/>
+                      <Border DockPanel.Dock="Right" Background="#161D2E" BorderBrush="{StaticResource LineBright}" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                        <TextBlock Name="LocalRelayStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Text="Local relay stopped"/>
+                      </Border>
+                    </DockPanel>
+                    <TextBlock Name="RelayDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Connects your StickS3 over any hotspot to your home PC using end-to-end AES-256-GCM + HMAC encryption. Run the built-in relay behind a tunnel or reverse proxy."/>
+                    <WrapPanel Margin="0,0,0,12">
+                      <Button Name="StartLocalRelay" Style="{StaticResource PrimaryBtn}" Content="Start Built-In Relay (8793)"/>
+                      <Button Name="StopLocalRelay" Content="Stop Built-In Relay"/>
+                    </WrapPanel>
+                    <TextBlock Name="RelayAddressLabel" Style="{StaticResource FieldLabel}" Text="Relay Endpoint URL (http://...)"/>
+                    <TextBox Name="RelayAddress" MaxLength="180" Margin="0,0,0,12"/>
+                    <WrapPanel>
+                      <Button Name="SaveRelay" Style="{StaticResource PrimaryBtn}" Content="Save URL"/>
+                      <Button Name="SyncRelay" Content="Push URL to Stick"/>
+                      <Button Name="TestRelay" Content="Test Connection"/>
+                      <Button Name="ExportChannels" Content="Export Channel Keys"/>
+                      <Button Name="ClearRelay" Style="{StaticResource DangerBtn}" Content="Clear URL"/>
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </ScrollViewer>
+
+            <!-- 7. Settings -->
+            <ScrollViewer Name="Settings" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+              <StackPanel>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                  <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                      <TextBlock Name="AutostartStateText" Text="Disabled" Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,12,0"/>
+                      <CheckBox Name="AutostartToggle" Style="{StaticResource AppleSwitch}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,20,0">
+                      <TextBlock Name="SettingsAutostartTitle" Style="{StaticResource SectionTitle}" Text="Background Autostart &amp; Wake on LAN"/>
+                      <TextBlock Name="SettingsAutostartDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                 Text="Start the silent AgentDeck bridge automatically when Windows signs in (zero CMD window) so Wake on LAN and StickS3 prompts are always ready."/>
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                  <StackPanel>
+                    <TextBlock Name="SettingsLangTitle" Style="{StaticResource SectionTitle}" Text="Language"/>
+                    <TextBlock Name="SettingsLangDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="English is enabled by default. Changes apply to Windows and automatically sync to a connected StickS3."/>
+                    <WrapPanel>
+                      <ComboBox Name="LanguagePicker" Width="240" Margin="0,0,10,0">
+                        <ComboBoxItem Content="English (Default)" Tag="en"/>
+                        <ComboBoxItem Content="Polski" Tag="pl"/>
+                      </ComboBox>
+                      <Button Name="SaveLanguageBtn" Style="{StaticResource PrimaryBtn}" Content="Apply Language"/>
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                  <StackPanel>
+                    <TextBlock Name="SettingsProjectsTitle" Style="{StaticResource SectionTitle}" Text="New Projects Directory"/>
+                    <TextBlock Name="SettingsProjectsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="New random-named projects created from StickS3 (e.g. solar-star) or Windows are created inside this directory."/>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <TextBox Name="ProjectsRootInput"/>
+                      <Button Name="BrowseProjectsRoot" Grid.Column="2" Content="Browse..."/>
+                      <Button Name="SaveProjectsRoot" Grid.Column="3" Style="{StaticResource PrimaryBtn}" Content="Save Folder" Margin="0"/>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                  <StackPanel>
+                    <TextBlock Name="SettingsAboutTitle" Style="{StaticResource SectionTitle}" Text="Setup Wizard &amp; Folders"/>
+                    <TextBlock Name="SettingsAboutDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="AgentDeck v0.6 · Launch the onboarding wizard anytime or open your local app and data directories."/>
+                    <WrapPanel>
+                      <Button Name="OpenWizardBtn" Style="{StaticResource PrimaryBtn}" Content="Run Setup Wizard"/>
+                      <Button Name="OpenDataFolderBtn" Content="Open Data Folder"/>
+                      <Button Name="OpenAppFolderBtn" Content="Open App Folder"/>
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+
+          <!-- Status Footer -->
+          <Grid Grid.Row="2" Margin="0,16,0,0">
+            <TextBlock Name="Status" Text="Ready" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+            <ProgressBar Name="Activity" Width="130" Height="4" HorizontalAlignment="Right"
+                         IsIndeterminate="False" Visibility="Collapsed" Foreground="{StaticResource Accent}" Background="#171E30" BorderThickness="0"/>
+          </Grid>
+        </Grid>
+      </Grid>
+
+      <!-- First-Run Apple-style Onboarding Overlay -->
+      <Grid Name="OnboardingOverlay" Grid.ColumnSpan="2" Background="#D6060910" Visibility="Collapsed">
+        <Border Name="OnboardingCard" Width="570" VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#0F1421" BorderBrush="#283654" BorderThickness="1" CornerRadius="22" Padding="28">
+          <StackPanel>
+            <!-- Top Emblem + Step indicator -->
+            <DockPanel Margin="0,0,0,18">
+              <Border DockPanel.Dock="Right" Background="#162038" BorderBrush="#2D406B" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Top">
+                <TextBlock Name="OnbStepBadge" Text="Step 1 of 3" FontSize="11.5" FontWeight="SemiBold" Foreground="#94B5FF"/>
+              </Border>
+              <StackPanel Orientation="Horizontal">
+                <Border Width="48" Height="48" CornerRadius="13" Background="#141C30" BorderBrush="#283554" BorderThickness="1" Padding="4">
+                  <Viewbox>
+                    <Canvas Width="1024" Height="1024">
+                      <Path Data="M225.019 348.676C200.248 298.052 247.243 242.046 301.4 257.649L788.018 397.852C833.201 410.87 850.04 466.072 819.816 502.092L555.77 816.77C525.546 852.789 468.258 845.792 447.592 803.556L225.019 348.676Z">
+                        <Path.Fill>
+                          <RadialGradientBrush MappingMode="RelativeToBoundingBox" GradientOrigin="0.20,0.22" Center="0.30,0.32" RadiusX="0.85" RadiusY="0.85">
+                            <GradientStop Color="#81A6F8" Offset="0"/>
+                            <GradientStop Color="#10082C" Offset="1"/>
+                          </RadialGradientBrush>
+                        </Path.Fill>
+                      </Path>
+                      <Path Data="M377.121 358.488L385.45 375.526L402.488 367.197L410.817 384.234L427.854 375.905L436.183 392.942L453.22 384.614L461.549 401.651L444.512 409.98L452.841 427.017L435.803 435.346L444.132 452.384L427.095 460.713L435.424 477.75L316.162 536.052L299.504 501.978L333.579 485.32L308.592 434.208L274.517 450.865L257.859 416.791L377.121 358.488ZM342.667 417.55L367.654 468.662L401.728 452.004L393.4 434.967L410.437 426.638L402.108 409.6L385.071 417.929L376.742 400.892L342.667 417.55ZM494.887 469.845L544.86 572.069L527.823 580.398L536.152 597.436L399.852 664.067L391.524 647.03L374.486 655.359L324.513 553.134L494.887 469.845ZM408.94 596.297L417.269 613.334L485.419 580.019L477.09 562.981L494.127 554.652L477.47 520.578L375.245 570.551L391.903 604.626L408.94 596.297Z" Fill="White"/>
+                    </Canvas>
+                  </Viewbox>
+                </Border>
+                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Text="AgentDeck v0.6" FontSize="20" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                  <TextBlock Name="OnbTagline" Text="Remote AI IDE control in your pocket." FontSize="12" Foreground="#81A6F8" Margin="0,2,0,0"/>
+                </StackPanel>
+              </StackPanel>
+            </DockPanel>
+
+            <TextBlock Name="OnbStepTitle" FontSize="22" FontWeight="Bold" Text="Welcome to AgentDeck" Margin="0,0,0,4"/>
+            <TextBlock Name="OnbStepSub" FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,18"
+                       Text="Choose your preferred language for AgentDeck on Windows and StickS3."/>
+
+            <!-- Step 1: Language -->
+            <StackPanel Name="OnbStep1" Margin="0,0,0,22">
+              <TextBlock Name="OnbLangPrompt" Style="{StaticResource FieldLabel}" Text="Interface Language" Margin="0,0,0,10"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="12"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button Name="OnbLangEnBtn" Margin="0" Padding="16,14" HorizontalContentAlignment="Left">
+                  <StackPanel>
+                    <TextBlock Name="OnbLangEnTitle" Text="English" FontSize="15" FontWeight="Bold"/>
+                    <TextBlock Name="OnbLangEnSub" Text="Default interface language" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>
+                  </StackPanel>
+                </Button>
+                <Button Name="OnbLangPlBtn" Grid.Column="2" Margin="0" Padding="16,14" HorizontalContentAlignment="Left">
+                  <StackPanel>
+                    <TextBlock Name="OnbLangPlTitle" Text="Polski" FontSize="15" FontWeight="Bold"/>
+                    <TextBlock Name="OnbLangPlSub" Text="Polski interfejs na PC i Sticku" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </StackPanel>
+
+            <!-- Step 2: Autostart & Wake on LAN -->
+            <StackPanel Name="OnbStep2" Visibility="Collapsed" Margin="0,0,0,22">
+              <Border Background="#0B0F1A" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
+                <DockPanel>
+                  <CheckBox Name="OnbAutoToggle" DockPanel.Dock="Right" Style="{StaticResource AppleSwitch}" IsChecked="True" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                  <StackPanel>
+                    <TextBlock Name="OnbAutoTitle" Text="Start AgentDeck with Windows" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <TextBlock Name="OnbAutoDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                               Text="Keeps the silent bridge active in the background (with zero CMD windows) so Wake on LAN and mobile StickS3 prompts work automatically after boot."/>
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <TextBlock Name="OnbAutoHint" FontSize="11.5" Foreground="#81A6F8" Margin="4,10,4,0" TextWrapping="Wrap"
+                         Text="Recommended: allows StickS3 to connect instantly whenever your PC wakes via Wake on LAN."/>
+            </StackPanel>
+
+            <!-- Step 3: StickS3 Pairing -->
+            <StackPanel Name="OnbStep3" Visibility="Collapsed" Margin="0,0,0,22">
+              <Border Background="#0B0F1A" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Ellipse Name="OnbStickDot" Width="10" Height="10" Fill="#34D399" Margin="0,0,9,0"/>
+                    <TextBlock Name="OnbStickState" Text="Checking USB connection..." FontSize="14.5" FontWeight="SemiBold"/>
+                  </StackPanel>
+                  <TextBlock Name="OnbStickDetail" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                             Text="Plug your M5Stick S3 into USB-C to pair in one click, or skip and pair anytime in Devices."/>
+                  <Button Name="OnbPairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair StickS3 via USB" HorizontalAlignment="Left" Margin="0"/>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <!-- Footer Buttons -->
+            <DockPanel>
+              <Button Name="OnbSkipBtn" DockPanel.Dock="Left" Content="Skip Setup" Margin="0" Background="Transparent" BorderBrush="Transparent" Foreground="{StaticResource Muted}"/>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Name="OnbBackBtn" Content="Back" Visibility="Collapsed" Margin="0,0,8,0"/>
+                <Button Name="OnbNextBtn" Style="{StaticResource PrimaryBtn}" Content="Continue" Margin="0"/>
+              </StackPanel>
+            </DockPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>
