@@ -269,6 +269,20 @@ class Deck:
         self.directory.mkdir(parents=True, exist_ok=True)
         self.settings_path = self.directory / "settings.json"
         self.settings = self._load_settings()
+        if not args.demo:
+            dsn = resolve_dsn(self.settings)
+            if dsn:
+                try:
+                    import sentry_sdk
+                    from sentry_sdk.integrations.logging import LoggingIntegration
+                    sentry_sdk.init(
+                        dsn=dsn,
+                        release=f"agentdeck@{APP_VERSION}",
+                        traces_sample_rate=1.0,
+                        integrations=[LoggingIntegration(capture_sentry_logs=True)],
+                    )
+                except Exception:
+                    pass
         self.state_path = self.directory / ("demo-jobs.json" if args.demo else "jobs.json")
         self.jobs = {}
         if self.state_path.exists():
