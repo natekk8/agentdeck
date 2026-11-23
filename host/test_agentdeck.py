@@ -650,25 +650,27 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual("pl", self.deck.desktop("settings_get", {})["language"])
 
     def test_last_seen_version_persists(self):
-        saved = self.deck.desktop("settings_save", {"last_seen_version": "2.0.0"})
-        self.assertEqual("2.0.0", saved["last_seen_version"])
+        from version import APP_DISPLAY_VERSION, APP_VERSION
+        saved = self.deck.desktop("settings_save", {"last_seen_version": APP_VERSION})
+        self.assertEqual(APP_VERSION, saved["last_seen_version"])
         loaded = self.deck.desktop("settings_get", {})
-        self.assertEqual("2.0.0", loaded["last_seen_version"])
-        self.assertEqual("2.0.0", loaded["version"])
-        self.assertEqual("v2.0", loaded["display_version"])
+        self.assertEqual(APP_VERSION, loaded["last_seen_version"])
+        self.assertEqual(APP_VERSION, loaded["version"])
+        self.assertEqual(APP_DISPLAY_VERSION, loaded["display_version"])
 
     def test_devices_reports_firmware_update_needed(self):
+        from version import EXPECTED_STICK_FIRMWARE
         links = Links(Path(self.temp.name), self.deck, lambda *a: None)
         dev_id = "aabbccddeeff001122334455"
         links.observe({"device": dev_id, "firmware": "1.0.0", "battery": 88}, usb=True)
         info = links.devices()
-        self.assertEqual("2.0.0", info["expected_firmware"])
+        self.assertEqual(EXPECTED_STICK_FIRMWARE, info["expected_firmware"])
         self.assertEqual("1.0.0", info["stick_firmware"])
         self.assertTrue(info["firmware_update_needed"])
 
-        links.observe({"device": dev_id, "firmware": "2.0.0", "battery": 88}, usb=True)
+        links.observe({"device": dev_id, "firmware": EXPECTED_STICK_FIRMWARE, "battery": 88}, usb=True)
         info2 = links.devices()
-        self.assertEqual("2.0.0", info2["stick_firmware"])
+        self.assertEqual(EXPECTED_STICK_FIRMWARE, info2["stick_firmware"])
         self.assertFalse(info2["firmware_update_needed"])
 
     def test_updater_download_and_apply_script(self):
@@ -716,6 +718,9 @@ class BridgeTest(unittest.TestCase):
                 self.assertIn("/VERYSILENT", ps_text)
                 self.assertIn("Remove-Item -LiteralPath", ps_text)
                 self.assertIn("Start-Process -FilePath", ps_text)
+                self.assertIn('/DIR="', ps_text)
+                flags = popen_mock.call_args.kwargs.get("creationflags", 0)
+                self.assertFalse(flags & getattr(__import__("subprocess"), "DETACHED_PROCESS", 0))
 
     def test_delete_and_clear_sessions(self):
         j1 = self.launch("codex")

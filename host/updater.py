@@ -230,7 +230,8 @@ Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*agentdeck
 Start-Sleep -Milliseconds 400
 
 if (Test-Path -LiteralPath $installer) {{
-    $proc = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS',("/DIR=`"" + $installDir + "`"")) -Wait -PassThru
+    $argLine = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR="' + $installDir + '"'
+    $proc = Start-Process -FilePath $installer -ArgumentList $argLine -Wait -PassThru
     Start-Sleep -Milliseconds 600
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 }}
@@ -245,7 +246,9 @@ Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
         script.write_text(ps_body, encoding="utf-8-sig")
 
         ps_exe = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        # Do NOT combine DETACHED_PROCESS with CREATE_NO_WINDOW: on Windows CreateProcess
+        # causes console-host powershell.exe to silently fail/abort before running the script.
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         subprocess.Popen(
             [str(ps_exe), "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(script)],
             stdin=subprocess.DEVNULL,
