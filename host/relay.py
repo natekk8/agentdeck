@@ -87,7 +87,9 @@ def make_server(address, channels):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
-    return ThreadingHTTPServer(address, Handler)
+    server = ThreadingHTTPServer(address, Handler)
+    server.daemon_threads = True
+    return server
 
 
 def main():

@@ -11,6 +11,7 @@ from pathlib import Path
 import queue
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -37,6 +38,7 @@ from providers import (
     friendly_error,
     ide_install,
     ide_status,
+    ide_status_cached,
     model_choices,
     model_name,
     named_models,
@@ -56,7 +58,10 @@ MARKERS = (".git", "pyproject.toml", "package.json", "platformio.ini", "Cargo.to
 SKIP = {"node_modules", "build", "dist", "venv", "vendor", "AppData", "Windows", "Users"}
 ID = re.compile(r"[a-f0-9]{24}\Z")
 CONVERSATION_ID = re.compile(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\Z", re.I)
-MUTATIONS = {"start", "stop", "power", "retry", "create_project", "switch_account", "answer"}
+MUTATIONS = {
+    "start", "stop", "power", "retry", "create_project", "switch_account",
+    "answer", "chain_start", "chain_append", "chain_cancel", "shutdown_after",
+}
 INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 ADJECTIVES = (
@@ -300,6 +305,7 @@ class Deck:
         self.prompt_path = self.directory / "project-prompts.json"
         self.project_path = self.directory / "project-folders.json"
         self.accounts_path = self.directory / "accounts.json"
+        self.pending_prompts_path = self.directory / ("demo-pending-prompts.json" if args.demo else "pending-prompts.json")
         self.presets = json.loads(self.prompt_path.read_bytes()) if self.prompt_path.is_file() else []
         raw_user_projects = json.loads(self.project_path.read_bytes()) if self.project_path.is_file() else {}
         self.user_projects = _normalize_user_projects(raw_user_projects)
@@ -307,6 +313,17 @@ class Deck:
         self.account_cache = {}
         self.dismissed_auth_hashes = set()
         self.job_prompts = {}
+        if self.pending_prompts_path.is_file():
+            try:
+                loaded_prompts = json.loads(self.pending_prompts_path.read_bytes())
+                if isinstance(loaded_prompts, dict):
+                    self.job_prompts = {
+                        str(k): str(v) for k, v in loaded_prompts.items()
+                        if k in self.jobs and self.jobs[k].get("state") in ACTIVE
+                    }
+            except (OSError, ValueError):
+                self.job_prompts = {}
+        self.live_outputs = {}
         args.project.extend(Path(p) for p in self.user_projects)
         initial_entries = []
         if not args.demo:
@@ -319,10 +336,13 @@ class Deck:
         self.catalog_pool = ThreadPoolExecutor(max_workers=2)
         self.updater = Updater(ROOT, self.directory)
         self.power_armed = False
+        self.shutdown_after_work = False
+        self.shutdown_settle_until = None
         self.deadline = None
         self.power_sent = False
         self.request_cache = OrderedDict()
         self.save()
+        self._save_job_prompts()
         for provider in PROVIDERS:
             self.refresh(provider)
 
@@ -391,6 +411,12 @@ class Deck:
 
     def save(self):
         atomic_json(self.state_path, self.jobs)
+
+    def _save_job_prompts(self):
+        try:
+            atomic_json(self.pending_prompts_path, self.job_prompts)
+        except OSError:
+            pass
 
     def _codex_auth_path(self):
         return Path.home() / ".codex" / "auth.json"
@@ -732,44 +758,87 @@ class Deck:
             if mode not in ("read", "write", "plan_execute"):
                 mode = "read"
             label = str(request.get("label") or "").strip() or text.splitlines()[0][:48]
+            shutdown_after = bool(request.get("shutdown_after"))
             with self.lock:
+                if shutdown_after and not (self.args.allow_shutdown or self.args.demo):
+                    raise ProviderError(tr(lang, "shutdown_disabled"))
                 project = self.projects.get(project_id)
                 if not project:
                     raise ValueError(tr(lang, "select_existing_folder"))
                 models = (self.catalogs.get(provider) or {}).get("models") or []
                 model_id = str(request.get("model") or "").strip()
-                model_label = model_id
-                if not model_id and models:
-                    model_id = models[0]["id"]
-                    model_label = models[0]["label"]
+                effort = str(request.get("effort") or "").strip()
+                chosen_model = next((m for m in models if m["id"] == model_id), None)
+                if chosen_model:
+                    choices, _ = model_choices(models, chosen_model)
+                    if effort and effort in choices:
+                        model_id = choices[effort]
+                    model_label = model_name(chosen_model)
+                elif not model_id and models:
+                    first = named_models(models)[0]
+                    chosen_model = next((m for m in models if m["id"] == first["id"]), models[0])
+                    choices, def_eff = model_choices(models, chosen_model)
+                    if effort and effort in choices:
+                        model_id = choices[effort]
+                    else:
+                        model_id = choices.get(def_eff, first["id"])
+                    model_label = first["label"]
                 elif not model_id:
                     model_id = "demo" if self.args.demo else ("gemini-3.8-flash-medium" if provider == "agy" else "gpt-5.3-codex")
                     model_label = model_id
+                else:
+                    model_label = model_id
                 job_id = secrets.token_hex(12)
                 self.job_prompts[job_id] = text
-                job = {
-                    "id": job_id,
-                    "source": "windows",
-                    "label": label,
-                    "provider": provider,
-                    "project_label": project["label"],
-                    "project": str(project["path"]),
-                    "model": model_id,
-                    "model_label": model_label,
-                    "effort": str(request.get("effort") or ""),
-                    "prompt": "quick",
-                    "state": "queued",
-                    "detail": tr(lang, "starting"),
-                    "preview": "",
-                    "mode": mode,
-                    "started": 0,
-                    "finished": 0,
-                    "conversation": "",
-                }
+                job = self._new_job_dict(
+                    job_id, "windows", label, provider, project, model_id, model_label,
+                    effort, "quick", mode, tr(lang, "starting"),
+                )
+                job["prompt_text"] = text
                 self.jobs[job_id] = job
+                self.power_armed = False
+                self.deadline = None
+                if shutdown_after:
+                    self.shutdown_after_work = True
+                    self.shutdown_settle_until = None
                 self.save()
+                self._save_job_prompts()
             self.tick()
             return {"job": self.visible_job(job)}
+        if operation == "models_for_provider":
+            provider = str(request.get("provider") or "").strip()
+            if provider not in PROVIDERS:
+                raise ValueError(tr(lang, "unknown_provider"))
+            self.refresh(provider)
+            with self.lock:
+                catalog = self.catalogs.get(provider, {})
+                raw_models = list(catalog.get("models") or [])
+                loading = provider in self.pending
+            items = []
+            for row in named_models(raw_models):
+                model_obj = next((m for m in raw_models if m["id"] == row["id"]), None)
+                choices, default_eff = model_choices(raw_models, model_obj) if model_obj else ({"default": row["id"]}, "default")
+                items.append({
+                    "id": row["id"],
+                    "label": row["label"],
+                    "efforts": list(choices.keys()),
+                    "default_effort": default_eff,
+                })
+            return {"items": items, "loading": loading}
+        if operation == "chain_start":
+            return self.start_chain(request, source="windows", lang=lang)
+        if operation == "chain_append":
+            return self.append_to_chain(request, source="windows", lang=lang)
+        if operation == "chain_cancel":
+            return self.cancel_chain(str(request.get("chain_id") or "").strip(), lang=lang)
+        if operation == "shutdown_after":
+            return self.set_shutdown_after(bool(request.get("enabled")), lang=lang)
+        if operation == "stop_session":
+            return self.route("stop", {"job": str(request.get("job") or "").strip(), "id": secrets.token_hex(12)}, lang=lang)
+        if operation == "retry_session":
+            res = self.route("retry", {"job": str(request.get("job") or "").strip(), "id": secrets.token_hex(12)}, lang=lang)
+            self.tick()
+            return res
         if operation == "update_check":
             return check_for_update()
         if operation == "update_download":
@@ -887,7 +956,7 @@ class Deck:
                     lang=lang,
                 )
             if operation == "recent_sessions":
-                return self.listing("sessions", {"limit": 30}) | self.overview()[0]
+                return self.listing("sessions", {"limit": 40, "include_all": True}) | self.overview()[0]
             if operation == "delete_session":
                 ident = str(request.get("job") or "").strip()
                 job = self.jobs.get(ident)
@@ -902,11 +971,13 @@ class Deck:
                         pending_q["event"].set()
                 self.jobs.pop(ident, None)
                 self.job_prompts.pop(ident, None)
+                self.live_outputs.pop(ident, None)
                 try:
                     self.result_path(ident).unlink(missing_ok=True)
                 except OSError:
                     pass
                 self.save()
+                self._save_job_prompts()
                 return {"deleted": ident}
             if operation == "clear_sessions":
                 removed = []
@@ -915,12 +986,14 @@ class Deck:
                         continue
                     self.jobs.pop(ident, None)
                     self.job_prompts.pop(ident, None)
+                    self.live_outputs.pop(ident, None)
                     try:
                         self.result_path(ident).unlink(missing_ok=True)
                     except OSError:
                         pass
                     removed.append(ident)
                 self.save()
+                self._save_job_prompts()
                 return {"deleted": len(removed)}
             if operation == "session_details":
                 ident = request.get("job")
@@ -929,7 +1002,7 @@ class Deck:
                     raise ValueError(tr(lang, "select_stick_session"))
                 output = self.result_path(job["id"])
                 try:
-                    with output.open(encoding="utf-8") as file:
+                    with output.open(encoding="utf-8", errors="replace") as file:
                         answer = file.read(500_001)
                 except FileNotFoundError:
                     output, answer = None, ""
@@ -939,6 +1012,9 @@ class Deck:
                 title, native_project = agy_conversation(conversation) if can_open else ("", "")
                 return self.visible_job(job) | {
                     "answer": answer[:500_000], "answer_truncated": len(answer) > 500_000,
+                    "live_output": self.live_outputs.get(job["id"], ""),
+                    "events": list(job.get("events") or []),
+                    "source": job.get("source", "stick"),
                     "output_path": str(output) if output else "", "project": job["project"],
                     "conversation": conversation, "conversation_title": title,
                     "cli_project": native_project == "default-cli-project",
@@ -986,6 +1062,40 @@ class Deck:
             if operation == "prompts":
                 target = request.get("project")
                 return {"items": [p for p in self.presets if p["project"] == target]}
+            if operation == "reorder_prompts":
+                target = request.get("project")
+                order = request.get("order")
+                if (target != "*" and target not in self.projects) or not isinstance(order, list):
+                    raise ValueError(tr(lang, "select_project_provider"))
+                target_prompts = [p for p in self.presets if p["project"] == target]
+                by_id = {p["id"]: p for p in target_prompts}
+                ordered_target = []
+                seen = set()
+                for pid in order:
+                    spid = str(pid or "")
+                    if spid in by_id and spid not in seen:
+                        ordered_target.append(by_id[spid])
+                        seen.add(spid)
+                for p in target_prompts:
+                    if p["id"] not in seen:
+                        ordered_target.append(p)
+                others = [p for p in self.presets if p["project"] != target]
+                first_idx = next((i for i, p in enumerate(self.presets) if p["project"] == target), len(others))
+                other_pos = 0
+                rebuilt = []
+                inserted = False
+                for p in self.presets:
+                    if p["project"] == target:
+                        if not inserted:
+                            rebuilt.extend(ordered_target)
+                            inserted = True
+                    else:
+                        rebuilt.append(others[other_pos])
+                        other_pos += 1
+                if not inserted:
+                    rebuilt[first_idx:first_idx] = ordered_target
+                self.write_prompts(rebuilt)
+                return {"items": ordered_target}
             if operation == "save_prompt":
                 project = request.get("project")
                 provider = request.get("provider", "")
@@ -1006,7 +1116,10 @@ class Deck:
                     mode = "read"
                 preset = {"id": ident, "project": project, "provider": provider,
                           "label": label, "description": description, "text": body, "mode": mode}
-                self.write_prompts([p for p in self.presets if p["id"] != ident] + [preset])
+                if previous is not None:
+                    self.write_prompts([preset if p["id"] == ident else p for p in self.presets])
+                else:
+                    self.write_prompts(list(self.presets) + [preset])
                 return {"item": preset}
             if operation == "answer_question":
                 return self.answer_question(request.get("job"), request.get("choice"), lang=lang)
@@ -1089,12 +1202,13 @@ class Deck:
         atomic_json(self.prompt_path, presets)
         self.presets = presets
 
-    def refresh(self, provider):
-        if provider in self.pending:
-            return
-        if self.catalogs.get(provider, {}).get("expiry", 0) > time.monotonic():
-            return
-        self.pending.add(provider)
+    def refresh(self, provider, force=False):
+        with self.lock:
+            if provider in self.pending:
+                return
+            if not force and self.catalogs.get(provider, {}).get("expiry", 0) > time.monotonic():
+                return
+            self.pending.add(provider)
         self.catalog_pool.submit(self.load_catalog, provider)
 
     def load_catalog(self, provider):
@@ -1108,7 +1222,10 @@ class Deck:
                 )
             else:
                 models, limits, projects = PROVIDERS[provider][0](lang=lang)
-            found = scan(self.args.roots, self.args.project, projects)
+            with self.lock:
+                roots = list(self.args.roots)
+                explicit = list(self.args.project)
+            found = scan(roots, explicit, projects)
             with self.lock:
                 # Preserve user-assigned provider tags and refresh live IDE provider tags
                 for entry in self.projects.values():
@@ -1137,6 +1254,35 @@ class Deck:
             with self.lock:
                 self.pending.discard(provider)
 
+    def _new_job_dict(self, ident, source, label, provider, project, model_id, model_label,
+                      effort, prompt_id, mode, detail, chain_id="", chain_index=0, chain_total=0, depends_on=""):
+        return {
+            "id": ident,
+            "source": source,
+            "label": label,
+            "provider": provider,
+            "project_label": project["label"],
+            "project": str(project["path"]),
+            "model": model_id,
+            "model_label": model_label,
+            "effort": effort,
+            "prompt": prompt_id,
+            "state": "queued",
+            "phase": "queued",
+            "detail": detail,
+            "preview": "",
+            "mode": mode,
+            "started": 0,
+            "finished": 0,
+            "conversation": "",
+            "active_tools": [],
+            "events": [],
+            "chain_id": chain_id,
+            "chain_index": chain_index,
+            "chain_total": chain_total,
+            "depends_on": depends_on,
+        }
+
     def visible_job(self, job):
         end = job.get("finished") or int(time.time())
         elapsed = max(0, end - job["started"]) if job["started"] else 0
@@ -1144,8 +1290,14 @@ class Deck:
         if start is not None and job["state"] in ACTIVE:
             elapsed = max(0, int(time.monotonic() - start))
         keys = ("id", "label", "provider", "project_label", "model_label", "state", "detail",
-                "preview", "mode", "effort")
-        payload = {k: job.get(k, "") for k in keys} | {"elapsed": elapsed}
+                "preview", "mode", "effort", "phase", "chain_id", "chain_index", "chain_total", "depends_on")
+        project_id = hashlib.sha256(os.path.normcase(job.get("project", "")).encode()).hexdigest()[:16] if job.get("project") else ""
+        payload = {k: job.get(k, "") for k in keys} | {
+            "project_id": project_id,
+            "elapsed": elapsed,
+            "active_tools": list(job.get("active_tools") or [])[:3],
+            "events_count": len(job.get("events") or []),
+        }
         q = job.get("question")
         if isinstance(q, dict):
             payload["question"] = {
@@ -1187,7 +1339,7 @@ class Deck:
         if self.args.demo:
             has_agy, has_codex = True, True
         else:
-            ides = ide_status()
+            ides = ide_status_cached()
             has_agy = bool((ides.get("agy") or {}).get("installed"))
             has_codex = bool((ides.get("codex") or {}).get("installed"))
         return {
@@ -1195,6 +1347,9 @@ class Deck:
             "armed": self.power_armed, "power_sent": self.power_sent,
             "power_allowed": self.args.allow_shutdown or self.args.demo,
             "cooldown": max(0, int(self.deadline - time.monotonic() + .999)) if self.deadline else None,
+            "shutdown_after": self.shutdown_after_work,
+            "shutdown_settling": self.shutdown_settle_until is not None,
+            "chain_queued": sum(1 for j in jobs if j["state"] == "queued" and j.get("chain_id")),
             "lang": self.language(),
             "has_agy": has_agy,
             "has_codex": has_codex,
@@ -1248,13 +1403,21 @@ class Deck:
                 path = self.result_path(job["id"])
                 if path.is_file():
                     page_size = 420
-                    with path.open(encoding="utf-8") as output:
+                    with path.open(encoding="utf-8", errors="replace") as output:
                         text = output.read(page * page_size + page_size + 1)[page * page_size:]
                     result["output"] = {"page": page, "text": " ".join(text[:page_size].split()),
                                         "more": len(text) > page_size}
             return result
         if operation == "start":
             return self.start(data, lang=lang)
+        if operation == "chain_start":
+            return self.start_chain(data, source="stick", lang=lang)
+        if operation == "chain_append":
+            return self.append_to_chain(data, source="stick", lang=lang)
+        if operation == "chain_cancel":
+            return self.cancel_chain(data.get("chain_id", ""), lang=lang)
+        if operation == "shutdown_after":
+            return self.set_shutdown_after(data.get("enabled"), lang=lang)
         if operation == "answer":
             return self.answer_question(data.get("job"), data.get("choice"), lang=lang)
         if operation == "retry":
@@ -1263,6 +1426,32 @@ class Deck:
                 raise ProviderError(tr(lang, "wait_session"))
             project_id = next((key for key, project in self.projects.items()
                                if str(project["path"]) == prior["project"]), "")
+            if prior.get("prompt") == "quick" and prior.get("prompt_text"):
+                jid = data["id"]
+                if jid in self.jobs:
+                    return {"job": self.visible_job(self.jobs[jid])}
+                resolved = self._resolve_step({
+                    "provider": prior["provider"],
+                    "project": project_id,
+                    "model": prior.get("model", ""),
+                    "effort": prior.get("effort", ""),
+                    "text": prior["prompt_text"],
+                    "label": prior.get("label", ""),
+                    "mode": prior.get("mode", "read"),
+                }, source=prior.get("source", "windows"), lang=lang)
+                job = self._new_job_dict(
+                    jid, prior.get("source", "windows"), resolved["label"], resolved["provider"],
+                    resolved["project"], resolved["model_id"], resolved["model_label"],
+                    resolved["effort"], "quick", resolved["mode"], tr(lang, "queued"),
+                )
+                job["prompt_text"] = resolved["prompt_text"]
+                self.jobs[jid] = job
+                self.job_prompts[jid] = resolved["prompt_text"]
+                self.power_armed = False
+                self.deadline = None
+                self.save()
+                self._save_job_prompts()
+                return {"job": self.visible_job(job)}
             return self.start({"id": data["id"], "project": project_id, "effort": prior.get("effort", ""), **{
                 k: prior[k] for k in ("provider", "model", "prompt", "mode")
             }}, lang=lang)
@@ -1271,6 +1460,7 @@ class Deck:
             if job["state"] == "queued":
                 job.update(state="cancelled", detail=tr(lang, "cancelled_in_queue"), finished=int(time.time()))
                 self.job_prompts.pop(job["id"], None)
+                self._save_job_prompts()
                 self.save()
             elif job["state"] in ("running", "waiting_input"):
                 job.update(state="stopping", detail=tr(lang, "stopping"))
@@ -1279,6 +1469,11 @@ class Deck:
                 if pending := self.pending_questions.get(job["id"]):
                     pending["event"].set()
                 self.save()
+            if self.shutdown_after_work and not any(
+                j["state"] in (ACTIVE - {"stopping"}) for j in self.jobs.values()
+            ):
+                self.shutdown_after_work = False
+                self.shutdown_settle_until = None
             return {"job": self.visible_job(job)}
         if operation == "power":
             armed = data.get("armed")
@@ -1293,6 +1488,9 @@ class Deck:
             self.power_armed = armed
             self.deadline = time.monotonic() + 30 if armed else None
             self.power_sent = False
+            if not armed:
+                self.shutdown_after_work = False
+                self.shutdown_settle_until = None
             return self.overview()[0]
         raise ValueError(tr(lang, "unknown_operation"))
 
@@ -1342,13 +1540,21 @@ class Deck:
             } for p in projects]
         elif operation == "prompts":
             target_project = data.get("project")
-            rows = [{"id": p["id"], "label": p["label"], "write": p.get("mode") in ("write", "plan_execute"),
-                     "mode": p.get("mode", "read"),
-                     "description": str(p.get("description") or "")[:120],
-                     "detail": "*" if p["project"] == "*" else ""}
-                    for p in self.presets
-                    if p["project"] in (target_project, "*") and p["provider"] in ("", provider)]
-            rows.sort(key=lambda row: row["label"].casefold())
+            project_presets = [
+                p for p in self.presets
+                if p["project"] == target_project and p["provider"] in ("", provider)
+            ]
+            global_presets = [
+                p for p in self.presets
+                if target_project != "*" and p["project"] == "*" and p["provider"] in ("", provider)
+            ]
+            rows = [{
+                "id": p["id"], "label": p["label"], "write": p.get("mode") in ("write", "plan_execute"),
+                "mode": p.get("mode", "read"),
+                "description": str(p.get("description") or "")[:120],
+                "detail": "*" if p["project"] == "*" else "",
+                "order": idx + 1,
+            } for idx, p in enumerate(project_presets + global_presets)]
         elif operation == "accounts":
             if provider not in PROVIDERS:
                 raise ValueError(tr(lang, "unknown_provider"))
@@ -1359,9 +1565,16 @@ class Deck:
         else:
             result, _ = self.overview()
             limit = int(data.get("limit") or 5)
-            rows = [{"id": j["id"], "label": j["label"], "detail": j["project_label"],
-                     "state": j["state"]} for j in reversed(self.jobs.values())
-                    if j.get("source", "stick") == "stick"][:limit]
+            include_all = bool(data.get("include_all"))
+            rows = [{
+                "id": j["id"], "label": j["label"], "detail": j["project_label"],
+                "state": j["state"], "provider": j.get("provider", ""),
+                "phase": j.get("phase", ""),
+                "chain_id": j.get("chain_id", ""),
+                "chain_index": j.get("chain_index", 0),
+                "chain_total": j.get("chain_total", 0),
+                "source": j.get("source", "stick"),
+            } for j in reversed(self.jobs.values()) if include_all or j.get("source", "stick") == "stick"][:limit]
             if "limit" in data:
                 offset = max(0, min(len(rows), int(data.get("offset", 0))))
                 items = rows[offset:offset + limit]
@@ -1374,6 +1587,82 @@ class Deck:
         return list(dict.fromkeys(job[field] for job in reversed(self.jobs.values())
                                   if job["provider"] == provider))
 
+    def _resolve_step(self, step, default_provider="", default_project="", source="stick", lang=DEFAULT_LANG):
+        if not isinstance(step, dict):
+            raise ValueError(tr(lang, "invalid_request"))
+        provider = str(step.get("provider") or default_provider).strip()
+        if provider not in PROVIDERS:
+            raise ValueError(tr(lang, "unknown_provider"))
+        project_id = str(step.get("project") or default_project).strip()
+        project = self.projects.get(project_id)
+        if not project:
+            raise ProviderError(tr(lang, "select_project_model_prompt"))
+        path = project["path"]
+        if path.resolve(strict=True) != path or not path.is_dir():
+            raise ProviderError(tr(lang, "project_path_changed"))
+        mode = str(step.get("mode") or "read").strip()
+        if mode not in {"read", "write", "plan_execute"}:
+            raise ValueError(tr(lang, "unknown_session_mode"))
+        models = self.catalogs.get(provider, {}).get("models", [])
+        raw_model = str(step.get("model") or "").strip()
+        effort = step.get("effort", "")
+        if not isinstance(effort, str):
+            raise ProviderError(tr(lang, "effort_unavailable"))
+        if raw_model:
+            model = next((m for m in models if m["id"] == raw_model), None)
+            if model:
+                choices, _ = model_choices(models, model)
+                if effort and effort not in choices:
+                    raise ProviderError(tr(lang, "effort_unavailable"))
+                model_id = choices.get(effort, model["id"])
+                model_lbl = model_name(model)
+            elif source == "windows":
+                model_id = raw_model
+                model_lbl = raw_model
+            else:
+                raise ProviderError(tr(lang, "select_project_model_prompt"))
+        elif source == "windows":
+            if models:
+                first = named_models(models)[0]
+                model = next((m for m in models if m["id"] == first["id"]), models[0])
+                choices, def_eff = model_choices(models, model)
+                model_id = choices.get(effort, choices.get(def_eff, first["id"]))
+                model_lbl = first["label"]
+            else:
+                model_id = "demo" if self.args.demo else ("gemini-3.8-flash-medium" if provider == "agy" else "gpt-5.3-codex")
+                model_lbl = model_id
+        else:
+            raise ProviderError(tr(lang, "select_project_model_prompt"))
+
+        prompt_id = str(step.get("prompt") or "").strip()
+        raw_text = str(step.get("text") or "").strip()
+        if prompt_id and prompt_id != "quick":
+            preset = next((p for p in self.presets if p["id"] == prompt_id
+                           and p["project"] in (project_id, "*")
+                           and p["provider"] in ("", provider)), None)
+            if not preset:
+                raise ProviderError(tr(lang, "select_project_model_prompt"))
+            label = preset["label"]
+            prompt_text = preset["text"]
+        elif raw_text:
+            prompt_id = "quick"
+            label = str(step.get("label") or "").strip() or raw_text.splitlines()[0][:48]
+            prompt_text = raw_text
+        else:
+            raise ProviderError(tr(lang, "select_project_model_prompt"))
+
+        return {
+            "provider": provider,
+            "project": project,
+            "model_id": model_id,
+            "model_label": model_lbl,
+            "effort": effort,
+            "prompt_id": prompt_id,
+            "label": label,
+            "prompt_text": prompt_text,
+            "mode": mode,
+        }
+
     def start(self, data, lang=DEFAULT_LANG):
         ident = data["id"]
         if ident in self.jobs:
@@ -1383,6 +1672,9 @@ class Deck:
             raise ValueError(tr(lang, "unknown_provider"))
         if self.power_sent:
             raise ProviderError(tr(lang, "shutdown_sent"))
+        shutdown_after = bool(data.get("shutdown_after"))
+        if shutdown_after and not (self.args.allow_shutdown or self.args.demo):
+            raise ProviderError(tr(lang, "shutdown_disabled"))
         if sum(j["state"] in ACTIVE for j in self.jobs.values()) >= 12:
             raise ProviderError(tr(lang, "queue_full"))
         project = self.projects.get(data.get("project"))
@@ -1403,16 +1695,207 @@ class Deck:
         choices, _ = model_choices(models, model)
         if not isinstance(effort, str) or (effort and effort not in choices):
             raise ProviderError(tr(lang, "effort_unavailable"))
-        job = {"id": ident, "source": "stick", "label": preset["label"], "provider": provider,
-               "project_label": project["label"], "project": str(path), "model": choices.get(effort, model["id"]),
-               "model_label": model_name(model), "effort": effort, "prompt": preset["id"], "state": "queued",
-               "detail": tr(lang, "queued"), "preview": "", "mode": mode, "started": 0, "finished": 0}
+        job = self._new_job_dict(
+            ident, "stick", preset["label"], provider, project,
+            choices.get(effort, model["id"]), model_name(model), effort,
+            preset["id"], mode, tr(lang, "queued"),
+        )
         self.jobs[ident] = job
         self.job_prompts[ident] = preset["text"]
         self.power_armed = False
         self.deadline = None
+        if shutdown_after:
+            self.shutdown_after_work = True
+            self.shutdown_settle_until = None
         self.save()
+        self._save_job_prompts()
         return {"job": self.visible_job(job)}
+
+    def start_chain(self, data, source="stick", lang=DEFAULT_LANG):
+        with self.lock:
+            if self.power_sent:
+                raise ProviderError(tr(lang, "shutdown_sent"))
+            steps = data.get("steps")
+            if not isinstance(steps, list) or not steps:
+                raise ValueError(tr(lang, "chain_empty"))
+            if len(steps) > 10:
+                raise ValueError(tr(lang, "chain_too_long"))
+            shutdown_after = bool(data.get("shutdown_after"))
+            if shutdown_after and not (self.args.allow_shutdown or self.args.demo):
+                raise ProviderError(tr(lang, "shutdown_disabled"))
+            if sum(j["state"] in ACTIVE for j in self.jobs.values()) + len(steps) > 24:
+                raise ProviderError(tr(lang, "queue_full"))
+            resolved = [
+                self._resolve_step(
+                    step,
+                    default_provider=str(data.get("provider") or ""),
+                    default_project=str(data.get("project") or ""),
+                    source=source,
+                    lang=lang,
+                )
+                for step in steps
+            ]
+            chain_id = secrets.token_hex(12)
+            total = len(resolved)
+            created = []
+            prev_id = ""
+            for idx, item in enumerate(resolved, start=1):
+                jid = secrets.token_hex(12)
+                detail = tr(lang, "queued") if idx == 1 else tr(lang, "waiting_chain_step", step=idx - 1, total=total)
+                job = self._new_job_dict(
+                    jid, source, item["label"], item["provider"], item["project"],
+                    item["model_id"], item["model_label"], item["effort"], item["prompt_id"],
+                    item["mode"], detail, chain_id=chain_id, chain_index=idx,
+                    chain_total=total, depends_on=prev_id,
+                )
+                self.jobs[jid] = job
+                self.job_prompts[jid] = item["prompt_text"]
+                created.append(job)
+                prev_id = jid
+            self.power_armed = False
+            self.deadline = None
+            if shutdown_after:
+                self.shutdown_after_work = True
+                self.shutdown_settle_until = None
+            self.save()
+            self._save_job_prompts()
+        self.tick()
+        return {
+            "chain_id": chain_id,
+            "jobs": [self.visible_job(j) for j in created],
+            "job": self.visible_job(created[0]),
+        } | self.overview()[0]
+
+    def append_to_chain(self, data, source="stick", lang=DEFAULT_LANG):
+        with self.lock:
+            if self.power_sent:
+                raise ProviderError(tr(lang, "shutdown_sent"))
+            shutdown_after = bool(data.get("shutdown_after"))
+            if shutdown_after and not (self.args.allow_shutdown or self.args.demo):
+                raise ProviderError(tr(lang, "shutdown_disabled"))
+            if sum(j["state"] in ACTIVE for j in self.jobs.values()) >= 24:
+                raise ProviderError(tr(lang, "queue_full"))
+            cid = str(data.get("chain_id") or "").strip()
+            after_id = str(data.get("after_job") or "").strip()
+            tail = None
+            chain_jobs = []
+            if cid:
+                chain_jobs = [j for j in self.jobs.values() if j.get("chain_id") == cid]
+                if chain_jobs:
+                    tail = max(chain_jobs, key=lambda j: j.get("chain_index", 0))
+            elif after_id and after_id in self.jobs:
+                base = self.jobs[after_id]
+                if base.get("chain_id"):
+                    cid = base["chain_id"]
+                    chain_jobs = [j for j in self.jobs.values() if j.get("chain_id") == cid]
+                    tail = max(chain_jobs, key=lambda j: j.get("chain_index", 0))
+                else:
+                    if base["state"] not in ACTIVE and base["state"] != "finished":
+                        raise ProviderError(tr(lang, "chain_prev_failed"))
+                    cid = secrets.token_hex(12)
+                    base["chain_id"] = cid
+                    base["chain_index"] = 1
+                    base["chain_total"] = 1
+                    chain_jobs = [base]
+                    tail = base
+            if not tail:
+                raise ValueError(tr(lang, "chain_not_found"))
+            if tail["state"] not in ACTIVE and tail["state"] != "finished":
+                raise ProviderError(tr(lang, "chain_prev_failed"))
+            if len(chain_jobs) >= 10:
+                raise ValueError(tr(lang, "chain_too_long"))
+            step_data = data.get("step") if isinstance(data.get("step"), dict) else data
+            default_proj_id = next(
+                (k for k, p in self.projects.items() if str(p["path"]) == tail["project"]),
+                "",
+            )
+            resolved = self._resolve_step(
+                step_data,
+                default_provider=tail.get("provider", ""),
+                default_project=default_proj_id,
+                source=source,
+                lang=lang,
+            )
+            new_idx = tail.get("chain_index", len(chain_jobs)) + 1
+            for existing in chain_jobs:
+                existing["chain_total"] = new_idx
+            jid = secrets.token_hex(12)
+            new_job = self._new_job_dict(
+                jid, source, resolved["label"], resolved["provider"], resolved["project"],
+                resolved["model_id"], resolved["model_label"], resolved["effort"],
+                resolved["prompt_id"], resolved["mode"],
+                tr(lang, "waiting_chain_step", step=new_idx - 1, total=new_idx),
+                chain_id=cid, chain_index=new_idx, chain_total=new_idx, depends_on=tail["id"],
+            )
+            self.jobs[jid] = new_job
+            self.job_prompts[jid] = resolved["prompt_text"]
+            self.power_armed = False
+            self.deadline = None
+            if shutdown_after:
+                self.shutdown_after_work = True
+                self.shutdown_settle_until = None
+            self.save()
+            self._save_job_prompts()
+        self.tick()
+        return {"chain_id": cid, "job": self.visible_job(new_job)} | self.overview()[0]
+
+    def cancel_chain(self, chain_id, lang=DEFAULT_LANG):
+        with self.lock:
+            cid = str(chain_id or "").strip()
+            chain_jobs = [j for j in self.jobs.values() if j.get("chain_id") == cid] if cid else []
+            if not chain_jobs:
+                raise ValueError(tr(lang, "chain_not_found"))
+            for job in chain_jobs:
+                jid = job["id"]
+                if job["state"] == "queued":
+                    job.update(state="cancelled", detail=tr(lang, "cancelled_in_queue"), finished=int(time.time()))
+                    self.job_prompts.pop(jid, None)
+                elif job["state"] in ("running", "waiting_input"):
+                    job.update(state="stopping", detail=tr(lang, "stopping"))
+                    job.pop("question", None)
+                    if jid in self.stops:
+                        self.stops[jid].set()
+                    if pending := self.pending_questions.get(jid):
+                        pending["event"].set()
+            if self.shutdown_after_work and not any(
+                j["state"] in (ACTIVE - {"stopping"}) for j in self.jobs.values()
+            ):
+                self.shutdown_after_work = False
+                self.shutdown_settle_until = None
+            self.save()
+            self._save_job_prompts()
+            return self.overview()[0]
+
+    def set_shutdown_after(self, enabled, lang=DEFAULT_LANG):
+        with self.lock:
+            if type(enabled) is not bool:
+                raise ValueError(tr(lang, "invalid_power_mode"))
+            if enabled and self.power_sent:
+                raise ProviderError(tr(lang, "shutdown_sent"))
+            if enabled and not (self.args.allow_shutdown or self.args.demo):
+                raise ProviderError(tr(lang, "shutdown_disabled"))
+            if enabled:
+                has_active = any(j["state"] in ACTIVE for j in self.jobs.values())
+                has_orphaned = any(j["state"] == "orphaned" for j in self.jobs.values())
+                if has_active:
+                    self.shutdown_after_work = True
+                    self.shutdown_settle_until = None
+                    self.power_armed = False
+                    self.deadline = None
+                elif has_orphaned:
+                    raise ProviderError(tr(lang, "check_active_sessions"))
+                else:
+                    self.shutdown_after_work = False
+                    self.shutdown_settle_until = None
+                    self.power_armed = True
+                    self.deadline = time.monotonic() + 30
+                    self.power_sent = False
+            else:
+                self.shutdown_after_work = False
+                self.shutdown_settle_until = None
+                self.power_armed = False
+                self.deadline = None
+            return self.overview()[0]
 
     def result_path(self, ident):
         return self.directory / ("demo-results" if self.args.demo else "results") / f"{ident}.txt"
@@ -1424,6 +1907,15 @@ class Deck:
 
         def update(detail, preview="", **extra):
             with self.lock:
+                activity_event = extra.pop("activity_event", None)
+                live_output = extra.pop("live_output", None)
+                if live_output is not None:
+                    self.live_outputs[ident] = str(live_output)[-40000:]
+                if isinstance(activity_event, dict):
+                    events = job.setdefault("events", [])
+                    events.append(activity_event)
+                    if len(events) > 80:
+                        del events[:-80]
                 if job["state"] == "running":
                     job["detail"] = detail[:180]
                 if preview:
@@ -1454,25 +1946,6 @@ class Deck:
             path = Path(job["project"])
             if path.resolve(strict=True) != path:
                 raise ProviderError(tr(lang, "project_path_changed"))
-            if job["mode"] in ("write", "plan_execute") and job["provider"] == "codex" and not self.args.demo and (path / ".git").exists():
-                git = executable("git", lang=lang)
-                try:
-                    actual = Path(capture([git, "-C", str(path), "rev-parse", "--show-toplevel"], lang=lang).strip()).resolve()
-                    has_head = True
-                    try:
-                        capture([git, "-C", str(path), "rev-parse", "--verify", "HEAD"], lang=lang)
-                    except ProviderError:
-                        has_head = False
-                    if actual == path and has_head:
-                        worktree = self.directory / "worktrees" / ident
-                        worktree.parent.mkdir(exist_ok=True)
-                        update(tr(lang, "creating_worktree"))
-                        capture([git, "-C", str(path), "worktree", "add", "--detach", str(worktree), "HEAD"],
-                                timeout=90, lang=lang)
-                        path = worktree
-                        update(tr(lang, "isolated_worktree"), worktree=str(worktree))
-                except ProviderError:
-                    pass
             body = self.job_prompts[ident]
             guard = tr(lang, "guard_base")
             if job["mode"] == "read":
@@ -1483,8 +1956,14 @@ class Deck:
                 guard += tr(lang, "guard_plan_execute") + tr(lang, "guard_questions")
             if self.args.demo:
                 for step in range(6):
-                    update(tr(lang, "demo_step", step=step + 1), tr(lang, "demo_preview"))
-                    if stop.wait(1):
+                    update(
+                        tr(lang, "demo_step", step=step + 1),
+                        tr(lang, "demo_preview"),
+                        phase="tool" if step < 4 else "reply",
+                        activity_event={"ts": int(time.time()), "phase": "tool", "title": f"Demo step {step + 1}/6", "detail": tr(lang, "demo_preview"), "status": "done"},
+                        live_output=f"Demo step {step + 1}/6: {tr(lang, 'demo_preview')}\n",
+                    )
+                    if stop.wait(0.35 if os.environ.get("AGENTDECK_FAST_DEMO") else 1):
                         break
                 status = "cancelled" if stop.is_set() else "finished"
                 detail = tr(lang, "demo_result")
@@ -1507,6 +1986,7 @@ class Deck:
             self.pending_questions.pop(ident, None)
             job.pop("question", None)
             self.job_prompts.pop(ident, None)
+            self.live_outputs.pop(ident, None)
             if status == "finished":
                 output = self.result_path(ident)
                 try:
@@ -1514,31 +1994,90 @@ class Deck:
                     output.write_text(detail, encoding="utf-8")
                 except OSError as error:
                     status, detail = friendly_error(error, lang=lang)
-            job.update(state=status, detail=(tr(lang, "completed") if status == "finished" else detail[:400]),
-                       preview=" ".join(detail.split())[:180], finished=int(time.time()))
+            job.update(
+                state=status,
+                phase=status,
+                active_tools=[],
+                detail=(tr(lang, "completed") if status == "finished" else detail[:400]),
+                preview=" ".join(detail.split())[:180],
+                finished=int(time.time()),
+            )
             if self.catalogs.get(job["provider"]):
                 self.catalogs[job["provider"]]["expiry"] = 0
             self.stops.pop(ident, None)
             self.started_at.pop(ident, None)
             self.save()
+            self._save_job_prompts()
+            chain_active = bool(job.get("chain_id"))
         print(f"{ident} {status} {job['label']}", flush=True)
+        if chain_active:
+            self.tick()
 
     def tick(self):
         lang = self.language()
         with self.lock:
             running = len(self.stops)
+            running_chains = {
+                self.jobs[jid].get("chain_id")
+                for jid in self.stops
+                if jid in self.jobs and self.jobs[jid].get("chain_id")
+            }
             if not self.power_sent:
+                changed = False
                 for job in self.jobs.values():
                     if running >= 2:
                         break
                     if job["state"] != "queued":
                         continue
-                    job.update(state="running", started=int(time.time()), detail=tr(lang, "starting"))
+                    cid = job.get("chain_id") or ""
+                    if cid and cid in running_chains:
+                        continue
+                    dep = job.get("depends_on") or ""
+                    if dep:
+                        prev = self.jobs.get(dep)
+                        if prev is None or prev["state"] in ("cancelled", "error", "limit", "orphaned"):
+                            job.update(
+                                state="cancelled",
+                                phase="cancelled",
+                                detail=tr(lang, "chain_prev_failed"),
+                                finished=int(time.time()),
+                            )
+                            self.job_prompts.pop(job["id"], None)
+                            changed = True
+                            continue
+                        if prev["state"] != "finished":
+                            waiting_msg = tr(lang, "waiting_chain_step", step=prev.get("chain_index", 1), total=job.get("chain_total", 1))
+                            if job.get("detail") != waiting_msg:
+                                job["detail"] = waiting_msg
+                                changed = True
+                            continue
+                    job.update(state="running", phase="thinking", started=int(time.time()), detail=tr(lang, "starting"))
                     self.started_at[job["id"]] = time.monotonic()
                     self.stops[job["id"]] = threading.Event()
-                    self.save()
+                    if cid:
+                        running_chains.add(cid)
+                    changed = True
                     threading.Thread(target=self.run, args=(job,), daemon=True).start()
                     running += 1
+                if changed:
+                    self.save()
+                    self._save_job_prompts()
+
+            if self.shutdown_after_work and not self.power_sent:
+                has_active = any(j["state"] in ACTIVE for j in self.jobs.values())
+                now = time.monotonic()
+                if has_active:
+                    self.shutdown_settle_until = None
+                else:
+                    if self.shutdown_settle_until is None:
+                        self.shutdown_settle_until = now + 4.0
+                    elif now >= self.shutdown_settle_until:
+                        self.shutdown_after_work = False
+                        self.shutdown_settle_until = None
+                        self.power_armed = True
+                        self.deadline = now + 30.0
+                        self.power_sent = False
+
             if self.deadline is None:
                 return
             now = time.monotonic()
@@ -1606,7 +2145,8 @@ def serial_loop(deck, port, done, links):
                                                     "id": status_id}) + b"\n")
                         next_status = now + .90
                     if last_contact and now - last_contact > 4:
-                        links.usb_ready = False
+                        with links.lock:
+                            links.usb_ready = False
                     buffer.extend(link.read(max(1, min(FRAME_LIMIT, link.in_waiting))))
                     while (end := buffer.find(b"\n")) >= 0:
                         frame = bytes(buffer[:end]).strip()
@@ -1635,7 +2175,8 @@ def serial_loop(deck, port, done, links):
                         link.write(FRAME + as_json(response) + b"\n")
                         if response.get("ok") and not links.usb_ready:
                             print(f"StickS3 answered on {device}.", flush=True)
-                            links.usb_ready = True
+                            with links.lock:
+                                links.usb_ready = True
                         if response.get("ok"):
                             last_contact = time.monotonic()
                     if len(buffer) > FRAME_LIMIT:

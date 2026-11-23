@@ -1,32 +1,33 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="AgentDeck (v1.1) | Remote AI IDE control in your pocket." Width="1160" Height="730" MinWidth="960" MinHeight="620"
+        Title="AgentDeck (v2.0) | Remote AI IDE control in your pocket." Width="1260" Height="790" MinWidth="1020" MinHeight="660"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
-        Background="#080B12" Foreground="#F4F7FB"
+        Background="#07090E" Foreground="#F8FAFC"
         FontFamily="Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI" FontSize="13.5" UseLayoutRounding="True">
   <shell:WindowChrome.WindowChrome>
-    <shell:WindowChrome CaptionHeight="46" CornerRadius="14" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
+    <shell:WindowChrome CaptionHeight="50" CornerRadius="14" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
   </shell:WindowChrome.WindowChrome>
 
   <Window.Resources>
-    <SolidColorBrush x:Key="Bg" Color="#080B12"/>
-    <SolidColorBrush x:Key="Sidebar" Color="#0C101B"/>
-    <SolidColorBrush x:Key="Panel" Color="#111623"/>
-    <SolidColorBrush x:Key="PanelAlt" Color="#161D2E"/>
-    <SolidColorBrush x:Key="InputBg" Color="#090D16"/>
-    <SolidColorBrush x:Key="Line" Color="#1C2438"/>
-    <SolidColorBrush x:Key="LineBright" Color="#283552"/>
-    <SolidColorBrush x:Key="Text" Color="#F4F7FB"/>
+    <SolidColorBrush x:Key="Bg" Color="#07090E"/>
+    <SolidColorBrush x:Key="Sidebar" Color="#0A0D16"/>
+    <SolidColorBrush x:Key="Panel" Color="#0F1422"/>
+    <SolidColorBrush x:Key="PanelAlt" Color="#141B2D"/>
+    <SolidColorBrush x:Key="InputBg" Color="#080B13"/>
+    <SolidColorBrush x:Key="Line" Color="#1C253A"/>
+    <SolidColorBrush x:Key="LineBright" Color="#2A3754"/>
+    <SolidColorBrush x:Key="Text" Color="#F8FAFC"/>
     <SolidColorBrush x:Key="Muted" Color="#8E9BB3"/>
-    <SolidColorBrush x:Key="Accent" Color="#5F8BFF"/>
-    <SolidColorBrush x:Key="AccentHover" Color="#799FFF"/>
-    <SolidColorBrush x:Key="AccentSoft" Color="#172447"/>
-    <SolidColorBrush x:Key="Mint" Color="#34D399"/>
-    <SolidColorBrush x:Key="MintDark" Color="#0F2D24"/>
-    <SolidColorBrush x:Key="Blue" Color="#60A5FA"/>
-    <SolidColorBrush x:Key="Amber" Color="#FBBF24"/>
-    <SolidColorBrush x:Key="Coral" Color="#FB7185"/>
+    <SolidColorBrush x:Key="Accent" Color="#5B7CFA"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#728FFC"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#162140"/>
+    <SolidColorBrush x:Key="Mint" Color="#10B981"/>
+    <SolidColorBrush x:Key="MintDark" Color="#0B2922"/>
+    <SolidColorBrush x:Key="Blue" Color="#38BDF8"/>
+    <SolidColorBrush x:Key="Amber" Color="#F59E0B"/>
+    <SolidColorBrush x:Key="Coral" Color="#F43F5E"/>
+    <SolidColorBrush x:Key="Violet" Color="#A78BFA"/>
 
     <Style TargetType="TextBlock">
       <Setter Property="VerticalAlignment" Value="Center"/>
@@ -34,8 +35,8 @@
 
     <Style TargetType="ScrollBar">
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Width" Value="7"/>
-      <Setter Property="MinWidth" Value="7"/>
+      <Setter Property="Width" Value="6"/>
+      <Setter Property="MinWidth" Value="6"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ScrollBar">
@@ -45,7 +46,7 @@
                   <Thumb>
                     <Thumb.Template>
                       <ControlTemplate TargetType="Thumb">
-                        <Border Background="#26314A" CornerRadius="3.5" Margin="1,2"/>
+                        <Border Background="#25314B" CornerRadius="3" Margin="1,2"/>
                       </ControlTemplate>
                     </Thumb.Template>
                   </Thumb>
@@ -57,8 +58,8 @@
       </Setter>
       <Style.Triggers>
         <Trigger Property="Orientation" Value="Horizontal">
-          <Setter Property="Height" Value="7"/>
-          <Setter Property="MinHeight" Value="7"/>
+          <Setter Property="Height" Value="6"/>
+          <Setter Property="MinHeight" Value="6"/>
           <Setter Property="Width" Value="Auto"/>
         </Trigger>
       </Style.Triggers>
@@ -66,15 +67,15 @@
 
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
-      <Setter Property="Background" Value="#161E31"/>
-      <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
-      <Setter Property="Padding" Value="15,8"/>
-      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Background" Value="#141C2E"/>
+      <Setter Property="BorderBrush" Value="#263350"/>
+      <Setter Property="Padding" Value="14,7"/>
+      <Setter Property="MinHeight" Value="34"/>
       <Setter Property="HorizontalContentAlignment" Value="Center"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Setter Property="FontWeight" Value="Medium"/>
       <Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="Margin" Value="0,0,8,8"/>
+      <Setter Property="Margin" Value="0"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
@@ -85,38 +86,8 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="BorderBrush" Value="#5F8BFF"/>
-                <Setter TargetName="Tile" Property="Background" Value="#1E2944"/>
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
-              </Trigger>
-              <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
-    <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="#5582FF"/>
-      <Setter Property="Foreground" Value="#FFFFFF"/>
-      <Setter Property="BorderBrush" Value="#739BFF"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="Button">
-            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
-              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-            </Border>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="Background" Value="#7097FF"/>
-                <Setter TargetName="Tile" Property="BorderBrush" Value="#9AB8FF"/>
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#5B7CFA"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1B2642"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Tile" Property="Opacity" Value="0.82"/>
@@ -130,10 +101,11 @@
       </Setter>
     </Style>
 
-    <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="#25131B"/>
-      <Setter Property="Foreground" Value="#FDA4AF"/>
-      <Setter Property="BorderBrush" Value="#4C1D2D"/>
+    <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#5273F5"/>
+      <Setter Property="Foreground" Value="#FFFFFF"/>
+      <Setter Property="BorderBrush" Value="#7591FA"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
@@ -144,8 +116,64 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="BorderBrush" Value="#FB7185"/>
-                <Setter TargetName="Tile" Property="Background" Value="#361925"/>
+                <Setter TargetName="Tile" Property="Background" Value="#6C8AFF"/>
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#9AB0FF"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.82"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="WarningBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#2D200B"/>
+      <Setter Property="Foreground" Value="#FCD34D"/>
+      <Setter Property="BorderBrush" Value="#785113"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="Background" Value="#422E0D"/>
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#F59E0B"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="#25121B"/>
+      <Setter Property="Foreground" Value="#FDA4AF"/>
+      <Setter Property="BorderBrush" Value="#541D32"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#F43F5E"/>
+                <Setter TargetName="Tile" Property="Background" Value="#381827"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="Tile" Property="Opacity" Value="0.38"/>
@@ -157,22 +185,21 @@
     </Style>
 
     <Style x:Key="PillBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Padding" Value="13,5"/>
-      <Setter Property="MinHeight" Value="30"/>
+      <Setter Property="Padding" Value="12,5"/>
+      <Setter Property="MinHeight" Value="28"/>
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Margin" Value="0,0,7,7"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="15" Padding="{TemplateBinding Padding}">
+                    BorderThickness="1" CornerRadius="14" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                 VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="BorderBrush" Value="#5F8BFF"/>
-                <Setter TargetName="Tile" Property="Background" Value="#1E2944"/>
+                <Setter TargetName="Tile" Property="BorderBrush" Value="#5B7CFA"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1B2642"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
@@ -202,8 +229,8 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="Background" Value="#1D2539"/>
-                <Setter Property="Foreground" Value="#F4F7FB"/>
+                <Setter TargetName="Tile" Property="Background" Value="#1A2236"/>
+                <Setter Property="Foreground" Value="#F8FAFC"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -220,7 +247,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="Background" Value="#7F1D2E"/>
+                <Setter TargetName="Tile" Property="Background" Value="#881337"/>
                 <Setter Property="Foreground" Value="#FFFFFF"/>
               </Trigger>
             </ControlTemplate.Triggers>
@@ -231,8 +258,8 @@
 
     <Style x:Key="Nav" TargetType="Button">
       <Setter Property="HorizontalContentAlignment" Value="Left"/>
-      <Setter Property="Margin" Value="0,0,0,5"/>
-      <Setter Property="Padding" Value="13,10"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+      <Setter Property="Padding" Value="12,9"/>
       <Setter Property="Foreground" Value="{StaticResource Muted}"/>
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderBrush" Value="Transparent"/>
@@ -241,12 +268,12 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="1" CornerRadius="11" Padding="{TemplateBinding Padding}">
+                    BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
               <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Tile" Property="Background" Value="#141C2E"/>
+                <Setter TargetName="Tile" Property="Background" Value="#131B2E"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Tile" Property="Opacity" Value="0.80"/>
@@ -257,7 +284,7 @@
       </Setter>
     </Style>
 
-    <!-- Apple-style Pill ToggleSwitch -->
+    <!-- Animated Pill ToggleSwitch -->
     <Style x:Key="AppleSwitch" TargetType="CheckBox">
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Width" Value="46"/>
@@ -265,16 +292,36 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="CheckBox">
-            <Border x:Name="Track" Width="46" Height="26" CornerRadius="13" Background="#252F47" BorderBrush="#344263" BorderThickness="1">
+            <Border x:Name="Track" Width="46" Height="26" CornerRadius="13" BorderThickness="1">
+              <Border.Background>
+                <SolidColorBrush Color="#222C42"/>
+              </Border.Background>
+              <Border.BorderBrush>
+                <SolidColorBrush Color="#334160"/>
+              </Border.BorderBrush>
               <Border x:Name="Thumb" Width="20" Height="20" CornerRadius="10" Background="#E2E8F0"
-                      HorizontalAlignment="Left" Margin="2,0,2,0"/>
+                      HorizontalAlignment="Left" Margin="2,0,0,0"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Track" Property="Background" Value="#5F8BFF"/>
-                <Setter TargetName="Track" Property="BorderBrush" Value="#82A6FF"/>
-                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
-                <Setter TargetName="Thumb" Property="Background" Value="#FFFFFF"/>
+                <Trigger.EnterActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <ThicknessAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="Margin" To="22,0,0,0" Duration="0:0:0.16"/>
+                      <ColorAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#5B7CFA" Duration="0:0:0.16"/>
+                      <ColorAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" To="#849DFB" Duration="0:0:0.16"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <ThicknessAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="Margin" To="2,0,0,0" Duration="0:0:0.16"/>
+                      <ColorAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#222C42" Duration="0:0:0.16"/>
+                      <ColorAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" To="#334160" Duration="0:0:0.16"/>
+                    </Storyboard>
+                  </BeginStoryboard>
+                </Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.45"/>
@@ -290,8 +337,8 @@
       <Setter Property="Background" Value="{StaticResource InputBg}"/>
       <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
       <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
-      <Setter Property="MinHeight" Value="36"/>
-      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="MinHeight" Value="34"/>
+      <Setter Property="Padding" Value="11,7"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
@@ -301,10 +348,10 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="Box" Property="BorderBrush" Value="#5F8BFF"/>
+                <Setter TargetName="Box" Property="BorderBrush" Value="#5B7CFA"/>
               </Trigger>
               <Trigger Property="IsReadOnly" Value="True">
-                <Setter TargetName="Box" Property="Background" Value="#0A0E18"/>
+                <Setter TargetName="Box" Property="Background" Value="#080B12"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -317,7 +364,8 @@
       <Setter Property="Background" Value="{StaticResource InputBg}"/>
       <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
       <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
-      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="MinHeight" Value="34"/>
+      <Setter Property="Padding" Value="11,8"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="PasswordBox">
@@ -327,7 +375,7 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter TargetName="Box" Property="BorderBrush" Value="#5F8BFF"/>
+                <Setter TargetName="Box" Property="BorderBrush" Value="#5B7CFA"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="Box" Property="Opacity" Value="0.42"/>
@@ -340,8 +388,9 @@
 
     <Style TargetType="ComboBox">
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
-      <Setter Property="Background" Value="#141B2D"/>
+      <Setter Property="Background" Value="#111829"/>
       <Setter Property="BorderBrush" Value="{StaticResource LineBright}"/>
+      <Setter Property="MinHeight" Value="34"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ComboBox">
@@ -350,21 +399,21 @@
                             Focusable="False" ClickMode="Press" Foreground="{TemplateBinding Foreground}">
                 <ToggleButton.Template>
                   <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Toggle" Background="#141B2D" BorderBrush="#283552" BorderThickness="1" CornerRadius="10" Padding="12,8">
+                    <Border x:Name="Toggle" Background="#111829" BorderBrush="#2A3754" BorderThickness="1" CornerRadius="10" Padding="11,7">
                       <TextBlock Text="⌄" HorizontalAlignment="Right" Foreground="#8E9BB3"/>
                     </Border>
                     <ControlTemplate.Triggers>
                       <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Toggle" Property="BorderBrush" Value="#5F8BFF"/>
+                        <Setter TargetName="Toggle" Property="BorderBrush" Value="#5B7CFA"/>
                       </Trigger>
                     </ControlTemplate.Triggers>
                   </ControlTemplate>
                 </ToggleButton.Template>
               </ToggleButton>
-              <ContentPresenter Margin="12,8,28,8" IsHitTestVisible="False"
+              <ContentPresenter Margin="11,7,28,7" IsHitTestVisible="False" VerticalAlignment="Center"
                                 Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
               <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True">
-                <Border Background="#121829" BorderBrush="#2B3A5A" BorderThickness="1" CornerRadius="10" Margin="0,5,0,0"
+                <Border Background="#111728" BorderBrush="#2C3D63" BorderThickness="1" CornerRadius="10" Margin="0,4,0,0"
                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="265">
                   <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
                 </Border>
@@ -416,21 +465,21 @@
     </Style>
 
     <Style TargetType="ListBoxItem">
-      <Setter Property="Padding" Value="12,9"/>
+      <Setter Property="Padding" Value="10,8"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ListBoxItem">
-            <Border x:Name="Item" Margin="2,2" CornerRadius="10" Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
+            <Border x:Name="Item" Margin="2,2" CornerRadius="9" Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
               <ContentPresenter/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Item" Property="Background" Value="#141C2E"/>
+                <Setter TargetName="Item" Property="Background" Value="#131B2E"/>
               </Trigger>
               <Trigger Property="IsSelected" Value="True">
-                <Setter TargetName="Item" Property="Background" Value="#172444"/>
-                <Setter TargetName="Item" Property="BorderBrush" Value="#3D5CA8"/>
+                <Setter TargetName="Item" Property="Background" Value="#172446"/>
+                <Setter TargetName="Item" Property="BorderBrush" Value="#4668C5"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -442,63 +491,63 @@
       <Setter Property="Background" Value="{StaticResource Panel}"/>
       <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="18"/>
-      <Setter Property="Padding" Value="20"/>
+      <Setter Property="CornerRadius" Value="16"/>
+      <Setter Property="Padding" Value="18"/>
     </Style>
 
     <Style x:Key="SectionTitle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontSize" Value="15.5"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
-      <Setter Property="Margin" Value="0,0,0,8"/>
+      <Setter Property="Margin" Value="0,0,0,6"/>
     </Style>
 
     <Style x:Key="FieldLabel" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontSize" Value="11.5"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="{StaticResource Muted}"/>
       <Setter Property="Margin" Value="0,0,0,5"/>
     </Style>
   </Window.Resources>
 
-  <Border Name="MainContainer" BorderBrush="#1C2438" BorderThickness="1" CornerRadius="12" Background="{StaticResource Bg}" ClipToBounds="True">
+  <Border Name="MainContainer" BorderBrush="#1C253A" BorderThickness="1" CornerRadius="14" Background="{StaticResource Bg}" ClipToBounds="True">
     <Grid>
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="276"/>
+        <ColumnDefinition Width="244"/>
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
 
       <!-- Subtle Ambient Orbs -->
       <Canvas Grid.ColumnSpan="2" IsHitTestVisible="False" ClipToBounds="True">
-        <Ellipse Name="BgOrb1" Width="460" Height="460" Canvas.Left="-140" Canvas.Top="-160" Opacity="0.45">
+        <Ellipse Name="BgOrb1" Width="520" Height="520" Canvas.Left="-160" Canvas.Top="-200" Opacity="0.42">
           <Ellipse.Fill>
             <RadialGradientBrush>
-              <GradientStop Color="#285F8BFF" Offset="0"/>
-              <GradientStop Color="#005F8BFF" Offset="1"/>
+              <GradientStop Color="#2B5B7CFA" Offset="0"/>
+              <GradientStop Color="#005B7CFA" Offset="1"/>
             </RadialGradientBrush>
           </Ellipse.Fill>
         </Ellipse>
-        <Ellipse Name="BgOrb2" Width="420" Height="420" Canvas.Right="-120" Canvas.Bottom="-150" Opacity="0.38">
+        <Ellipse Name="BgOrb2" Width="460" Height="460" Canvas.Right="-120" Canvas.Bottom="-180" Opacity="0.34">
           <Ellipse.Fill>
             <RadialGradientBrush>
-              <GradientStop Color="#2034D399" Offset="0"/>
-              <GradientStop Color="#0034D399" Offset="1"/>
+              <GradientStop Color="#2210B981" Offset="0"/>
+              <GradientStop Color="#0010B981" Offset="1"/>
             </RadialGradientBrush>
           </Ellipse.Fill>
         </Ellipse>
       </Canvas>
 
       <!-- Sidebar -->
-      <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0" CornerRadius="12,0,0,12">
-        <DockPanel Margin="18,16,18,16" LastChildFill="True">
+      <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0" CornerRadius="14,0,0,14">
+        <DockPanel Margin="16,16,16,16" LastChildFill="True">
           <!-- Brand Header -->
           <Grid DockPanel.Dock="Top" Margin="2,0,2,18">
             <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="46"/>
+              <ColumnDefinition Width="44"/>
               <ColumnDefinition Width="12"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Border Width="46" Height="46" CornerRadius="12" Background="#121829" BorderBrush="#232E4A" BorderThickness="1" Padding="3" VerticalAlignment="Top">
+            <Border Width="44" Height="44" CornerRadius="12" Background="#121829" BorderBrush="#263350" BorderThickness="1" Padding="3" VerticalAlignment="Top">
               <Grid>
                 <Image Name="BrandLogo" Stretch="Uniform" Visibility="Collapsed"/>
                 <Viewbox Name="BrandFallback">
@@ -518,31 +567,31 @@
             </Border>
             <StackPanel Grid.Column="2" VerticalAlignment="Center">
               <WrapPanel VerticalAlignment="Center">
-                <TextBlock Text="AgentDeck" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,7,2"/>
-                <Border Background="#18223A" BorderBrush="#2C3E66" BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center" Margin="0,0,0,2">
-                  <TextBlock Name="VersionBadge" Text="v1.1" FontSize="10" FontWeight="SemiBold" Foreground="#93B4FF"/>
+                <TextBlock Text="AgentDeck" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}" Margin="0,0,7,1"/>
+                <Border Background="#182342" BorderBrush="#354C82" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                  <TextBlock Name="VersionBadge" Text="v2.0" FontSize="10" FontWeight="SemiBold" Foreground="#9AB5FF"/>
                 </Border>
               </WrapPanel>
               <TextBlock Name="BrandTagline" Text="Remote AI IDE control in your pocket." FontSize="11"
-                         Foreground="#81A6F8" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                         Foreground="#7F9EF8" TextWrapping="Wrap" Margin="0,2,0,0"/>
             </StackPanel>
           </Grid>
 
           <!-- Bottom Live Stick Status + Battery Card -->
-          <Border DockPanel.Dock="Bottom" Background="#111726" BorderBrush="#212C44" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,10,0,0">
+          <Border DockPanel.Dock="Bottom" Background="#0F1524" BorderBrush="#212C46" BorderThickness="1" CornerRadius="14" Padding="13" Margin="0,10,0,0">
             <StackPanel>
               <DockPanel Margin="0,0,0,6">
-                <Border Name="SidebarBatteryBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A"
+                <Border Name="SidebarBatteryBadge" DockPanel.Dock="Right" Background="#0B2922" BorderBrush="#195243"
                         BorderThickness="1" CornerRadius="6" Padding="7,2" Visibility="Collapsed">
                   <TextBlock Name="SidebarBatteryText" Text="100%" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}"/>
                 </Border>
                 <StackPanel Orientation="Horizontal">
-                  <Ellipse Name="LinkDot" Width="8" Height="8" Fill="#34D399" Margin="0,0,8,0"/>
+                  <Ellipse Name="LinkDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,8,0"/>
                   <TextBlock Name="LinkStatus" Text="Connecting..." FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource Mint}"/>
                 </StackPanel>
               </DockPanel>
               <ProgressBar Name="SidebarBatteryBar" Height="4" Minimum="0" Maximum="100" Value="0"
-                           Foreground="#34D399" Background="#1A2236" BorderThickness="0" Margin="0,0,0,7" Visibility="Collapsed"/>
+                           Foreground="#10B981" Background="#1A2236" BorderThickness="0" Margin="0,0,0,7" Visibility="Collapsed"/>
               <TextBlock Name="Context" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource Muted}" Text="Waiting for StickS3"/>
             </StackPanel>
           </Border>
@@ -550,60 +599,60 @@
           <!-- Scrollable Navigation -->
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-            <Button Name="NavHome" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M3,11 L12,3 L21,11 V20 H15 V14 H9 V20 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavHomeText" Text="Home" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavPrompts" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M3,5 H9 L11,7 H21 V19 H3 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavPromptsText" Text="Projects &amp; Prompts" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavSessions" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M4,5 H20 V17 H8 L4,20 Z" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavSessionsText" Text="Sessions" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavAccounts" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M12,12 A4,4 0 1,0 12,4 A4,4 0 1,0 12,12 M4,20 C4,16 8,14 12,14 C16,14 20,16 20,20" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavAccountsText" Text="Accounts" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavDevices" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M7,3 H17 V21 H7 Z M10,18 H14" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavDevicesText" Text="Devices" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavWifi" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M2,9 C8,4 16,4 22,9 M5,13 C9,9.5 15,9.5 19,13 M9,17 C11,15.5 13,15.5 15,17 M12,20 L12,20.2" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavWifiText" Text="Wi-Fi" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavRemote" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M12,2 A10,10 0 1,0 12,22 A10,10 0 1,0 12,2 M2,12 H22 M12,2 C15,6 15,18 12,22" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavRemoteText" Text="Remote Control" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavFeedback" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M4,4 H20 V16 H9 L4,20 Z M12,8 V11 M12,13.5 L12,13.7" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavFeedbackText" Text="Feedback" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
-            <Button Name="NavSettings" Style="{StaticResource Nav}">
-              <StackPanel Orientation="Horizontal">
-                <Path Data="M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 M4,12 L2,12 M22,12 L20,12 M12,4 L12,2 M12,22 L12,20" Width="16" Height="16" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
-                <TextBlock Name="NavSettingsText" Text="Settings" FontWeight="Medium"/>
-              </StackPanel>
-            </Button>
+              <Button Name="NavHome" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M3,11 L12,3 L21,11 V20 H15 V14 H9 V20 H3 Z" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavHomeText" Text="Home" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavPrompts" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M3,5 H9 L11,7 H21 V19 H3 Z" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavPromptsText" Text="Projects &amp; Prompts" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavSessions" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M4,5 H20 V17 H8 L4,20 Z" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavSessionsText" Text="Sessions" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavAccounts" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M12,12 A4,4 0 1,0 12,4 A4,4 0 1,0 12,12 M4,20 C4,16 8,14 12,14 C16,14 20,16 20,20" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavAccountsText" Text="Accounts" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavDevices" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M7,3 H17 V21 H7 Z M10,18 H14" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavDevicesText" Text="Devices" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavWifi" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M2,9 C8,4 16,4 22,9 M5,13 C9,9.5 15,9.5 19,13 M9,17 C11,15.5 13,15.5 15,17 M12,20 L12,20.2" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavWifiText" Text="Wi-Fi" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavRemote" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M12,2 A10,10 0 1,0 12,22 A10,10 0 1,0 12,2 M2,12 H22 M12,2 C15,6 15,18 12,22" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavRemoteText" Text="Remote Control" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavFeedback" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M4,4 H20 V16 H9 L4,20 Z M12,8 V11 M12,13.5 L12,13.7" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavFeedbackText" Text="Feedback" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
+              <Button Name="NavSettings" Style="{StaticResource Nav}">
+                <StackPanel Orientation="Horizontal">
+                  <Path Data="M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 M4,12 L2,12 M22,12 L20,12 M12,4 L12,2 M12,22 L12,20" Width="15" Height="15" Stretch="Uniform" Stroke="#8E9BB3" StrokeThickness="1.7" Margin="0,0,11,0"/>
+                  <TextBlock Name="NavSettingsText" Text="Settings" FontWeight="Medium"/>
+                </StackPanel>
+              </Button>
             </StackPanel>
           </ScrollViewer>
         </DockPanel>
@@ -612,12 +661,12 @@
       <!-- Main Content Column -->
       <Grid Grid.Column="1">
         <Grid.RowDefinitions>
-          <RowDefinition Height="46"/>
+          <RowDefinition Height="50"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Custom Apple-style Window Titlebar -->
-        <DockPanel Margin="22,8,14,0" LastChildFill="True">
+        <!-- Custom Top Titlebar with Live Status Pills & 1-Click Auto-OFF -->
+        <DockPanel Margin="24,10,14,0" LastChildFill="True">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
             <Button Name="WinMinBtn" Style="{StaticResource ChromeBtn}" ToolTip="Minimize">
               <Path Data="M1,5.5 H10" Width="11" Height="11" Stretch="None" Stroke="#A6B3C9" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
@@ -629,11 +678,31 @@
               <Path Data="M1.5,1.5 L9.5,9.5 M9.5,1.5 L1.5,9.5" Width="11" Height="11" Stretch="None" Stroke="#CBD5E1" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
             </Button>
           </StackPanel>
-          <TextBlock Text="" VerticalAlignment="Center"/>
+
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Button Name="TitleJobsBtn" Style="{StaticResource PillBtn}" Padding="10,4" MinHeight="26" Margin="0,0,8,0"
+                    Background="#101829" BorderBrush="#24314E">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Name="TitleJobsDot" Width="7" Height="7" Fill="#8E9BB3" Margin="0,0,7,0"/>
+                <TextBlock Name="TitleJobsText" Text="Idle" FontSize="11.5" Foreground="{StaticResource Muted}"/>
+              </StackPanel>
+            </Button>
+            <Border Name="TitleChainBadge" Background="#1E1838" BorderBrush="#4C3B94" BorderThickness="1" CornerRadius="13"
+                    Padding="10,4" Margin="0,0,8,0" Visibility="Collapsed" VerticalAlignment="Center">
+              <TextBlock Name="TitleChainText" Text="Chain: 0 queued" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Violet}"/>
+            </Border>
+            <Button Name="TitleShutdownBtn" Style="{StaticResource PillBtn}" Padding="11,4" MinHeight="26" Margin="0"
+                    Background="#101829" BorderBrush="#24314E">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Name="TitleShutdownDot" Width="7" Height="7" Fill="#8E9BB3" Margin="0,0,7,0"/>
+                <TextBlock Name="TitleShutdownText" Text="Auto-OFF PC: Off" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Muted}"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
         </DockPanel>
 
         <!-- Main Workspace -->
-        <Grid Grid.Row="1" Margin="22,4,22,18">
+        <Grid Grid.Row="1" Margin="24,6,24,18">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -643,22 +712,41 @@
 
           <!-- Top Animated Banners -->
           <StackPanel Grid.Row="0">
-            <!-- Animated Top Auto-Updater Bar -->
-            <Border Name="UpdateBanner" Visibility="Collapsed" Margin="0,0,0,12" Background="#121C36"
+            <!-- Autonomous Shutdown Armed / Countdown Banner -->
+            <Border Name="ShutdownBanner" Visibility="Collapsed" Margin="0,0,0,12" Background="#24190A"
+                    BorderBrush="#B47C1A" BorderThickness="1" CornerRadius="14" Padding="15,10">
+              <DockPanel>
+                <Button Name="CancelShutdownBtn" DockPanel.Dock="Right" Style="{StaticResource DangerBtn}"
+                        Padding="14,6" MinHeight="30" FontSize="12" Content="Cancel Shutdown" VerticalAlignment="Center"/>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                  <StackPanel Orientation="Horizontal">
+                    <Ellipse Name="ShutdownDot" Width="8" Height="8" Fill="#F59E0B" Margin="0,0,8,0"/>
+                    <TextBlock Name="ShutdownBannerTitle" FontSize="13.5" FontWeight="SemiBold" Foreground="#FDE68A" Text="Auto-Shutdown armed"/>
+                  </StackPanel>
+                  <TextBlock Name="ShutdownBannerSub" FontSize="11.5" Foreground="#E5C57D" Margin="16,2,0,0" TextWrapping="Wrap"
+                             Text="PC will shut down automatically after all work completes — even if StickS3 disconnects."/>
+                  <ProgressBar Name="ShutdownCountdownBar" Height="4" Minimum="0" Maximum="30" Value="30" Margin="16,6,0,0"
+                               Foreground="#F59E0B" Background="#3B2A10" BorderThickness="0" Visibility="Collapsed"/>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+
+            <!-- Auto-Updater Bar -->
+            <Border Name="UpdateBanner" Visibility="Collapsed" Margin="0,0,0,12" Background="#101A34"
                     BorderBrush="#3D61C2" BorderThickness="1" CornerRadius="14" Padding="15,10">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                  <Button Name="UpdateActionBtn" Style="{StaticResource PrimaryBtn}" Padding="15,7" FontSize="12.5" Content="Update to v1 Preview" Margin="0,0,6,0"/>
-                  <Button Name="UpdateDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#283552"/>
+                  <Button Name="UpdateActionBtn" Style="{StaticResource PrimaryBtn}" Padding="14,6" MinHeight="30" FontSize="12" Content="Update" Margin="0,0,6,0"/>
+                  <Button Name="UpdateDismissBtn" Content="✕" Padding="9,5" MinHeight="30" FontSize="11.5" Background="Transparent" BorderBrush="#283552"/>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                   <StackPanel Orientation="Horizontal">
-                    <Ellipse Name="UpdateDot" Width="8" Height="8" Fill="#5F8BFF" Margin="0,0,8,0"/>
+                    <Ellipse Name="UpdateDot" Width="8" Height="8" Fill="#5B7CFA" Margin="0,0,8,0"/>
                     <TextBlock Name="UpdateBannerTitle" FontSize="13.5" FontWeight="SemiBold" Text="Update available"/>
                   </StackPanel>
                   <TextBlock Name="UpdateBannerSub" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="16,2,0,0" Text="Ready to download"/>
                   <ProgressBar Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Value="0" Margin="16,6,0,0"
-                               Foreground="#5F8BFF" Background="#1D2742" BorderThickness="0" Visibility="Collapsed"/>
+                               Foreground="#5B7CFA" Background="#1D2742" BorderThickness="0" Visibility="Collapsed"/>
                 </StackPanel>
               </DockPanel>
             </Border>
@@ -668,16 +756,16 @@
                     BorderBrush="#B47C1A" BorderThickness="1" CornerRadius="14" Padding="15,10">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                  <Button Name="StickFwUpdateBtn" Style="{StaticResource PrimaryBtn}" Padding="14,7" FontSize="12.5" Content="Update StickS3 Firmware" Margin="0,0,6,0"/>
-                  <Button Name="StickFwDismissBtn" Content="✕" Padding="9,6" FontSize="11.5" Margin="0" Background="Transparent" BorderBrush="#4E3916"/>
+                  <Button Name="StickFwUpdateBtn" Style="{StaticResource PrimaryBtn}" Padding="14,6" MinHeight="30" FontSize="12" Content="Update StickS3 Firmware" Margin="0,0,6,0"/>
+                  <Button Name="StickFwDismissBtn" Content="✕" Padding="9,5" MinHeight="30" FontSize="11.5" Background="Transparent" BorderBrush="#4E3916"/>
                 </StackPanel>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                   <StackPanel Orientation="Horizontal">
-                    <Ellipse Name="StickFwDot" Width="8" Height="8" Fill="#FBBF24" Margin="0,0,8,0"/>
+                    <Ellipse Name="StickFwDot" Width="8" Height="8" Fill="#F59E0B" Margin="0,0,8,0"/>
                     <TextBlock Name="StickFwTitle" FontSize="13.5" FontWeight="SemiBold" Text="StickS3 firmware update required"/>
                   </StackPanel>
                   <TextBlock Name="StickFwSub" FontSize="11.5" Foreground="#E2C07D" Margin="16,2,0,0" TextWrapping="Wrap"
-                             Text="Connect your M5Stick S3 via USB-C to update it to v1.0.0."/>
+                             Text="Connect your M5Stick S3 via USB-C to update it to v2.0.0."/>
                 </StackPanel>
               </DockPanel>
             </Border>
@@ -685,9 +773,9 @@
 
           <!-- Page Header -->
           <StackPanel Grid.Row="1" Margin="0,0,0,14">
-            <TextBlock Name="Heading" FontSize="26" FontWeight="Bold" Text="Projects &amp; Prompts"/>
-            <TextBlock Name="SubHeading" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,4,0,0"
-                       Text="Manage IDE-synced projects, quick random workspaces, and prompt templates"/>
+            <TextBlock Name="Heading" FontSize="25" FontWeight="Bold" Text="Home"/>
+            <TextBlock Name="SubHeading" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"
+                       Text="Send prompts, stage chains, manage IDEs, and connect StickS3"/>
           </StackPanel>
 
           <!-- Page Body -->
@@ -696,11 +784,11 @@
             <Grid Name="Home">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="18"/>
-                <ColumnDefinition Width="380"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="376"/>
               </Grid.ColumnDefinitions>
 
-              <!-- Quick Prompt Card -->
+              <!-- Quick Prompt & Chain Launcher Card -->
               <Border Style="{StaticResource Card}">
                 <Grid>
                   <Grid.RowDefinitions>
@@ -709,33 +797,49 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
-                  <StackPanel Margin="0,0,0,14">
-                    <TextBlock Name="HomeQuickTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Quick Prompt"/>
-                    <TextBlock Name="HomeQuickDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0"
-                               Text="Send a prompt directly from Windows using your installed AI IDE and watch progress live in Sessions."/>
+
+                  <StackPanel Margin="0,0,0,12">
+                    <TextBlock Name="HomeQuickTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Quick Prompt &amp; Chain Launcher"/>
+                    <TextBlock Name="HomeQuickDesc" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0"
+                               Text="Launch a single task or chain multiple prompts sequentially — works autonomously even if StickS3 turns off."/>
                   </StackPanel>
 
-                  <Grid Grid.Row="1" Margin="0,0,0,12">
+                  <Grid Grid.Row="1" Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*"/>
                       <ColumnDefinition Width="10"/>
                       <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="10"/>
+                      <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <StackPanel>
                       <TextBlock Name="HomeIdeLabel" Style="{StaticResource FieldLabel}" Text="AI IDE"/>
                       <ComboBox Name="HomeProvider"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
+                      <TextBlock Name="HomeModelLabel" Style="{StaticResource FieldLabel}" Text="Model"/>
+                      <ComboBox Name="HomeModel"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2">
+                      <TextBlock Name="HomeEffortLabel" Style="{StaticResource FieldLabel}" Text="Reasoning"/>
+                      <ComboBox Name="HomeEffort"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Grid.Column="2">
                       <TextBlock Name="HomeModeLabel" Style="{StaticResource FieldLabel}" Text="Mode"/>
                       <ComboBox Name="HomeMode">
                         <ComboBoxItem Name="HomeModeRead" Content="Read-only (Analysis)" Tag="read"/>
                         <ComboBoxItem Name="HomeModeWrite" Content="Write (Edit files)" Tag="write"/>
+                        <ComboBoxItem Name="HomeModePlan" Content="Plan &amp; Execute (Auto)" Tag="plan_execute"/>
                       </ComboBox>
                     </StackPanel>
                   </Grid>
 
-                  <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                  <StackPanel Grid.Row="2" Margin="0,0,0,10">
                     <TextBlock Name="HomeProjectLabel" Style="{StaticResource FieldLabel}" Text="Project"/>
                     <ComboBox Name="HomeProject"/>
                   </StackPanel>
@@ -746,58 +850,75 @@
                              VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
                   </DockPanel>
 
-                  <WrapPanel Grid.Row="4" Margin="0,14,0,0">
-                    <Button Name="HomeSendBtn" Style="{StaticResource PrimaryBtn}" Content="Send Prompt"/>
-                    <Button Name="HomeOpenSessionsBtn" Content="Open Sessions"/>
-                  </WrapPanel>
+                  <!-- Staged Chain Draft Bar -->
+                  <Border Name="HomeChainDraftBar" Grid.Row="4" Visibility="Collapsed" Margin="0,10,0,0"
+                          Background="#14112B" BorderBrush="#413478" BorderThickness="1" CornerRadius="10" Padding="11,8">
+                    <DockPanel>
+                      <Button Name="HomeClearChainBtn" DockPanel.Dock="Right" Style="{StaticResource PillBtn}" Padding="10,3" MinHeight="24" Content="Clear" Margin="8,0,0,0"/>
+                      <TextBlock Name="HomeChainSummary" FontSize="12" Foreground="#C4B5FD" TextWrapping="Wrap" Text="Chain draft: 0 steps"/>
+                    </DockPanel>
+                  </Border>
+
+                  <!-- Bottom Action Row -->
+                  <DockPanel Grid.Row="5" Margin="0,12,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                      <TextBlock Name="HomeShutdownLabel" Text="Auto-OFF PC" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="0,0,8,0"/>
+                      <CheckBox Name="HomeShutdownToggle" Style="{StaticResource AppleSwitch}"/>
+                    </StackPanel>
+                    <WrapPanel>
+                      <Button Name="HomeSendBtn" Style="{StaticResource PrimaryBtn}" Content="Send Prompt" Margin="0,0,8,0"/>
+                      <Button Name="HomeStageChainBtn" Content="+ Add Step to Chain" Margin="0,0,8,0"/>
+                      <Button Name="HomeOpenSessionsBtn" Content="Sessions" Margin="0"/>
+                    </WrapPanel>
+                  </DockPanel>
                 </Grid>
               </Border>
 
-              <!-- Right Column: AI IDEs Manager + StickS3 Quick Connect -->
+              <!-- Right Column: Live Activity Summary + AI IDEs + StickS3 -->
               <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto"/>
-                  <RowDefinition Height="16"/>
+                  <RowDefinition Height="14"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="14"/>
                   <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- AI IDEs Card -->
                 <Border Style="{StaticResource Card}">
                   <StackPanel>
-                    <DockPanel Margin="0,0,0,10">
-                      <Button Name="RefreshIdeBtn" DockPanel.Dock="Right" Style="{StaticResource PillBtn}" Content="Refresh" Margin="0"/>
+                    <DockPanel Margin="0,0,0,8">
+                      <Button Name="RefreshIdeBtn" DockPanel.Dock="Right" Style="{StaticResource PillBtn}" Content="Refresh"/>
                       <TextBlock Name="HomeIdesTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Installed AI IDEs"/>
                     </DockPanel>
-                    <TextBlock Name="HomeIdesDesc" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Text="Only installed IDEs are shown on your StickS3. Install missing CLIs in one click."/>
+                    <TextBlock Name="HomeIdesDesc" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Text="Only installed IDEs appear on StickS3. Install missing CLIs in one click."/>
 
-                    <!-- Antigravity CLI Row -->
-                    <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
+                    <Border Background="#080B13" BorderBrush="#1F2A42" BorderThickness="1" CornerRadius="11" Padding="11" Margin="0,0,0,8">
                       <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                          <Border Name="AgyIdeBadge" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
+                          <Border Name="AgyIdeBadge" Background="#0B2922" BorderBrush="#195243" BorderThickness="1" CornerRadius="7" Padding="8,3" Margin="6,0,0,0">
                             <TextBlock Name="AgyIdeStatus" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
                           </Border>
-                          <Button Name="InstallAgyBtn" Style="{StaticResource PrimaryBtn}" Padding="11,5" MinHeight="28" FontSize="11.5" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
+                          <Button Name="InstallAgyBtn" Style="{StaticResource PrimaryBtn}" Padding="10,4" MinHeight="26" FontSize="11" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
-                          <TextBlock Text="Antigravity CLI" FontWeight="SemiBold" FontSize="13.5"/>
+                          <TextBlock Text="Antigravity CLI" FontWeight="SemiBold" FontSize="13"/>
                           <TextBlock Name="AgyIdeDetail" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" Text="Detecting..."/>
                         </StackPanel>
                       </DockPanel>
                     </Border>
 
-                    <!-- ChatGPT Codex Row -->
-                    <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="12" Padding="12">
+                    <Border Background="#080B13" BorderBrush="#1F2A42" BorderThickness="1" CornerRadius="11" Padding="11">
                       <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                          <Border Name="CodexIdeBadge" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" VerticalAlignment="Center" Margin="6,0,0,0">
+                          <Border Name="CodexIdeBadge" Background="#0B2922" BorderBrush="#195243" BorderThickness="1" CornerRadius="7" Padding="8,3" Margin="6,0,0,0">
                             <TextBlock Name="CodexIdeStatus" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
                           </Border>
-                          <Button Name="InstallCodexBtn" Style="{StaticResource PrimaryBtn}" Padding="11,5" MinHeight="28" FontSize="11.5" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
+                          <Button Name="InstallCodexBtn" Style="{StaticResource PrimaryBtn}" Padding="10,4" MinHeight="26" FontSize="11" Margin="8,0,0,0" Content="Install" Visibility="Collapsed"/>
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
-                          <TextBlock Text="ChatGPT Codex" FontWeight="SemiBold" FontSize="13.5"/>
+                          <TextBlock Text="ChatGPT Codex" FontWeight="SemiBold" FontSize="13"/>
                           <TextBlock Name="CodexIdeDetail" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" Text="Detecting..."/>
                         </StackPanel>
                       </DockPanel>
@@ -810,42 +931,61 @@
                   <StackPanel>
                     <TextBlock Name="HomeStickTitle" Style="{StaticResource SectionTitle}" Text="StickS3 Connection"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                      <Ellipse Name="HomeStickDot" Width="9" Height="9" Fill="#34D399" Margin="0,0,8,0"/>
-                      <TextBlock Name="HomeStickStatus" FontSize="13.5" FontWeight="SemiBold" Text="Checking StickS3..."/>
+                      <Ellipse Name="HomeStickDot" Width="9" Height="9" Fill="#10B981" Margin="0,0,8,0"/>
+                      <TextBlock Name="HomeStickStatus" FontSize="13" FontWeight="SemiBold" Text="Checking StickS3..."/>
                     </StackPanel>
-                    <TextBlock Name="HomeStickDetail" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14"
+                    <TextBlock Name="HomeStickDetail" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
                                Text="Connect M5Stick S3 via USB-C to pair or flash the latest firmware."/>
                     <WrapPanel>
-                      <Button Name="HomePairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair via USB"/>
+                      <Button Name="HomePairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair via USB" Margin="0,0,8,0"/>
                       <Button Name="HomeFlashUsbBtn" Content="Flash Firmware (USB)"/>
                     </WrapPanel>
+                  </StackPanel>
+                </Border>
+
+                <!-- Live Work Status Card -->
+                <Border Grid.Row="4" Style="{StaticResource Card}">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                      <Button Name="HomeGoSessionsBtn" DockPanel.Dock="Right" Style="{StaticResource PillBtn}" Content="Inspect"/>
+                      <TextBlock Name="HomeLiveTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Live Bridge Status"/>
+                    </DockPanel>
+                    <TextBlock Name="HomeLiveSummary" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                               Text="No active sessions right now."/>
                   </StackPanel>
                 </Border>
               </Grid>
             </Grid>
 
-            <!-- 1. Projects & Prompts -->
+            <!-- 1. Projects & Prompts (Custom Drag-and-Drop Order, ZERO Suggested Templates) -->
             <Grid Name="Prompts" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="346"/>
-                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="328"/>
+                <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
 
               <Border Style="{StaticResource Card}">
                 <DockPanel>
-                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                     <TextBlock Name="ProjectsTitle" Style="{StaticResource SectionTitle}" Text="IDE Projects"/>
-                    <WrapPanel Margin="0,0,0,10">
-                      <Button Name="FilterAll" Style="{StaticResource PillBtn}" Content="All"/>
-                      <Button Name="FilterAgy" Style="{StaticResource PillBtn}" Content="Antigravity"/>
+                    <WrapPanel Margin="0,0,0,8">
+                      <Button Name="FilterAll" Style="{StaticResource PillBtn}" Content="All" Margin="0,0,6,0"/>
+                      <Button Name="FilterAgy" Style="{StaticResource PillBtn}" Content="Antigravity" Margin="0,0,6,0"/>
                       <Button Name="FilterCodex" Style="{StaticResource PillBtn}" Content="Codex"/>
                     </WrapPanel>
-                    <WrapPanel Margin="0,0,0,4">
-                      <Button Name="NewProjectBtn" Style="{StaticResource PrimaryBtn}" Padding="13,6" MinHeight="32" FontSize="12.5" Content="+ New Project"/>
-                      <Button Name="RenameProjectBtn" Padding="13,6" MinHeight="32" FontSize="12.5" Content="Rename"/>
-                      <Button Name="AddProject" Padding="13,6" MinHeight="32" FontSize="12.5" Content="Add Folder"/>
-                    </WrapPanel>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <Button Name="NewProjectBtn" Style="{StaticResource PrimaryBtn}" Padding="11,5" MinHeight="30" FontSize="12" Content="+ New Project"/>
+                      <Button Name="RenameProjectBtn" Grid.Column="2" Padding="11,5" MinHeight="30" FontSize="12" Content="Rename"/>
+                      <Button Name="AddProject" Grid.Column="4" Padding="11,5" MinHeight="30" FontSize="12" Content="Add Folder"/>
+                    </Grid>
                   </StackPanel>
 
                   <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
@@ -855,10 +995,10 @@
                         <ColumnDefinition Width="8"/>
                         <ColumnDefinition Width="*"/>
                       </Grid.ColumnDefinitions>
-                      <Button Name="ShowProject" Content="Open on Stick" Margin="0" FontSize="12" Padding="8,7"/>
-                      <Button Name="UseProject" Grid.Column="2" Content="Sync from Stick" Margin="0" FontSize="12" Padding="8,7"/>
+                      <Button Name="ShowProject" Content="Open on Stick" FontSize="12" Padding="8,6" MinHeight="32"/>
+                      <Button Name="UseProject" Grid.Column="2" Content="Sync from Stick" FontSize="12" Padding="8,6" MinHeight="32"/>
                     </Grid>
-                    <Button Name="BindProject" Content="Bind Antigravity ID" Margin="0,8,0,0" FontSize="12" Padding="8,7"/>
+                    <Button Name="BindProject" Content="Bind Antigravity ID" Margin="0,8,0,0" FontSize="12" Padding="8,6" MinHeight="32"/>
                   </StackPanel>
 
                   <ListBox Name="ProjectList">
@@ -869,11 +1009,11 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
-                          <StackPanel Margin="0,0,10,0">
+                          <StackPanel Margin="0,0,8,0">
                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="13"/>
                             <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
                           </StackPanel>
-                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" Margin="4,0,2,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
                             <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10" FontWeight="Bold"/>
                           </Border>
                         </Grid>
@@ -887,8 +1027,8 @@
                 <Grid>
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="116"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="195"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -901,19 +1041,33 @@
                     <TextBlock Name="ProjectSubPath" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                   </StackPanel>
 
-                  <ListBox Name="PromptList" Grid.Row="1">
+                  <DockPanel Grid.Row="1" Margin="0,0,0,6">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                      <Button Name="MovePromptUpBtn" Style="{StaticResource PillBtn}" Padding="10,3" MinHeight="26" Content="↑" Margin="0,0,6,0"/>
+                      <Button Name="MovePromptDownBtn" Style="{StaticResource PillBtn}" Padding="10,3" MinHeight="26" Content="↓"/>
+                    </StackPanel>
+                    <TextBlock Name="PromptOrderTitle" Style="{StaticResource FieldLabel}" Margin="0" Text="StickS3 Prompt Order (drag rows or use arrows to reorder)"/>
+                  </DockPanel>
+
+                  <ListBox Name="PromptList" Grid.Row="2" AllowDrop="True">
                     <ListBox.ItemTemplate>
                       <DataTemplate>
                         <Grid>
                           <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
-                          <StackPanel Margin="0,0,10,0">
+                          <TextBlock Text="⋮⋮" Foreground="#5A6B8C" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" Cursor="SizeAll"/>
+                          <Border Grid.Column="1" Background="#162038" BorderBrush="#283A63" BorderThickness="1" CornerRadius="5" Padding="6,1" Margin="0,0,9,0" VerticalAlignment="Center" Visibility="{Binding ActionVisibility}">
+                            <TextBlock Text="{Binding ActionLabel}" Foreground="#9AB5FF" FontSize="10.5" FontWeight="Bold"/>
+                          </Border>
+                          <StackPanel Grid.Column="2" Margin="0,0,10,0">
                             <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
                           </StackPanel>
-                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" Margin="4,0,2,0" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                          <Border Grid.Column="3" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,2" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
                             <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="SemiBold"/>
                           </Border>
                         </Grid>
@@ -921,18 +1075,13 @@
                     </ListBox.ItemTemplate>
                   </ListBox>
 
-                  <StackPanel Grid.Row="2" Margin="0,10,0,2">
-                    <TextBlock Name="SuggestedTitle" Style="{StaticResource FieldLabel}" Text="Suggested templates (click to load):" Margin="0,0,0,5"/>
-                    <WrapPanel Name="TemplateChips"/>
-                  </StackPanel>
-
-                  <DockPanel Grid.Row="3" Margin="0,8,0,6">
-                    <TextBlock Name="PromptTitleLabel" DockPanel.Dock="Left" Style="{StaticResource FieldLabel}" Margin="0" Text="Prompt Name"/>
-                    <ComboBox Name="Provider" DockPanel.Dock="Right" Width="170">
+                  <DockPanel Grid.Row="3" Margin="0,12,0,6">
+                    <ComboBox Name="Provider" DockPanel.Dock="Right" Width="168">
                       <ComboBoxItem Name="ProviderBoth" Content="Both IDEs" Tag=""/>
                       <ComboBoxItem Name="ProviderCodex" Content="Codex" Tag="codex"/>
                       <ComboBoxItem Name="ProviderAgy" Content="Antigravity" Tag="agy"/>
                     </ComboBox>
+                    <TextBlock Name="PromptTitleLabel" Style="{StaticResource FieldLabel}" Margin="0" Text="Prompt Name"/>
                   </DockPanel>
 
                   <TextBox Name="PromptTitle" Grid.Row="4" MaxLength="64" Margin="0,0,0,8" AutomationProperties.Name="Prompt Name"/>
@@ -945,10 +1094,10 @@
                   <TextBox Name="PromptText" Grid.Row="6" MaxLength="32000" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
                            VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Prompt Content"/>
 
-                  <DockPanel Grid.Row="7" Margin="0,14,0,0">
+                  <DockPanel Grid.Row="7" Margin="0,12,0,0">
                     <WrapPanel DockPanel.Dock="Left">
-                      <Button Name="SavePrompt" Style="{StaticResource PrimaryBtn}" Content="Save Prompt"/>
-                      <Button Name="NewPrompt" Content="Clear / New"/>
+                      <Button Name="SavePrompt" Style="{StaticResource PrimaryBtn}" Content="Save Prompt" Margin="0,0,8,0"/>
+                      <Button Name="NewPrompt" Content="Clear / New" Margin="0,0,8,0"/>
                       <Button Name="DeletePrompt" Style="{StaticResource DangerBtn}" Content="Delete"/>
                     </WrapPanel>
                     <TextBlock Name="GlobalPromptHint" DockPanel.Dock="Right" FontSize="11.5" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" Text=""/>
@@ -957,73 +1106,149 @@
               </Border>
             </Grid>
 
-            <!-- 2. Sessions -->
-            <Border Name="Sessions" Style="{StaticResource Card}" Visibility="Collapsed">
-              <DockPanel>
-                <TextBlock Name="SessionsTitle" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}" Text="Recent Stick Sessions"/>
-                <ListBox Name="SessionList" DockPanel.Dock="Top" Height="152" Margin="0,0,0,12">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate>
-                      <Grid>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="*"/>
-                          <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-                        <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,3" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
-                          <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="11" FontWeight="SemiBold"/>
+            <!-- 2. Sessions & Live Agent Monitor -->
+            <Grid Name="Sessions" Visibility="Collapsed">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <!-- Left: Session History & Chain Queue -->
+              <Border Style="{StaticResource Card}">
+                <DockPanel>
+                  <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <TextBlock Name="SessionsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Sessions"/>
+                  </DockPanel>
+                  <Grid DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="8"/>
+                      <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Name="DeleteSessionBtn" Style="{StaticResource DangerBtn}" Content="Delete" IsEnabled="False" FontSize="12" Padding="8,6" MinHeight="32"/>
+                    <Button Name="ClearSessionsBtn" Grid.Column="2" Content="Clear Finished" FontSize="12" Padding="8,6" MinHeight="32"/>
+                  </Grid>
+                  <ListBox Name="SessionList">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                          </Grid.ColumnDefinitions>
+                          <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                          </StackPanel>
+                          <Border Grid.Column="1" Background="{Binding BadgeBg}" CornerRadius="6" Padding="7,2" VerticalAlignment="Center" Visibility="{Binding BadgeVisibility}">
+                            <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="SemiBold"/>
+                          </Border>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+              </Border>
+
+              <!-- Right: Session Inspector + Live Activity Stream -->
+              <Border Grid.Column="2" Style="{StaticResource Card}">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                    <DockPanel Margin="0,0,0,8">
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Name="SessionPhaseBadge" Background="#162140" BorderBrush="#354D91" BorderThickness="1" CornerRadius="7" Padding="9,3" Margin="0,0,6,0" Visibility="Collapsed">
+                          <TextBlock Name="SessionPhaseText" FontSize="11" FontWeight="SemiBold" Foreground="#9AB5FF" Text="Thinking"/>
                         </Border>
-                      </Grid>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                  <Button Name="OpenConversation" Style="{StaticResource PrimaryBtn}" Content="Open in Antigravity CLI" IsEnabled="False"/>
-                  <Button Name="OpenAnswer" Content="Open Output File" IsEnabled="False"/>
-                  <Button Name="DeleteSessionBtn" Style="{StaticResource DangerBtn}" Content="Delete Session" IsEnabled="False"/>
-                  <Button Name="ClearSessionsBtn" Content="Clear Finished"/>
-                </WrapPanel>
-                <TextBlock Name="SessionLocation" DockPanel.Dock="Top" Foreground="{StaticResource Muted}"
-                           TextWrapping="Wrap" Margin="0,0,0,8" Text="Select a session to read its output."/>
-                <Border Name="QuestionPanel" DockPanel.Dock="Top" Background="#122136" BorderBrush="#2C5282" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10" Visibility="Collapsed">
-                  <StackPanel>
-                    <TextBlock Name="QuestionHeader" FontWeight="Bold" Foreground="{StaticResource Mint}" FontSize="12.5"/>
-                    <TextBlock Name="QuestionText" TextWrapping="Wrap" Foreground="{StaticResource Text}" Margin="0,4,0,10"/>
-                    <WrapPanel Name="QuestionOptions"/>
+                        <Border Name="SessionChainBadge" Background="#1E1838" BorderBrush="#4C3B94" BorderThickness="1" CornerRadius="7" Padding="9,3" Visibility="Collapsed">
+                          <TextBlock Name="SessionChainText" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Violet}" Text="Chain 1/2"/>
+                        </Border>
+                      </StackPanel>
+                      <TextBlock Name="SessionDetailTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Session Inspector"/>
+                    </DockPanel>
+
+                    <TextBlock Name="SessionLocation" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Text="Select a session to inspect live tools, subagents, commands, and output."/>
+
+                    <WrapPanel Margin="0,0,0,10">
+                      <Button Name="StopSessionBtn" Style="{StaticResource DangerBtn}" Content="Stop" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" IsEnabled="False"/>
+                      <Button Name="RetrySessionBtn" Content="Retry" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" IsEnabled="False"/>
+                      <Button Name="ChainNextBtn" Style="{StaticResource PrimaryBtn}" Content="+ Chain Next" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" IsEnabled="False"/>
+                      <Button Name="SessionAutoOffBtn" Style="{StaticResource WarningBtn}" Content="Auto-OFF PC" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6"/>
+                      <Button Name="CancelChainBtn" Style="{StaticResource DangerBtn}" Content="Cancel Chain" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" Visibility="Collapsed"/>
+                      <Button Name="OpenConversation" Style="{StaticResource PrimaryBtn}" Content="Open in Antigravity CLI" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" IsEnabled="False"/>
+                      <Button Name="OpenAnswer" Content="Open Output File" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,8,6" IsEnabled="False"/>
+                      <Button Name="CopyOutputBtn" Content="Copy Output" Padding="12,5" MinHeight="30" FontSize="12" Margin="0,0,0,6" IsEnabled="False"/>
+                    </WrapPanel>
+
+                    <Border Name="QuestionPanel" Background="#112138" BorderBrush="#2C5282" BorderThickness="1" CornerRadius="12" Padding="13" Margin="0,0,0,10" Visibility="Collapsed">
+                      <StackPanel>
+                        <TextBlock Name="QuestionHeader" FontWeight="Bold" Foreground="{StaticResource Mint}" FontSize="12.5"/>
+                        <TextBlock Name="QuestionText" TextWrapping="Wrap" Foreground="{StaticResource Text}" Margin="0,4,0,10"/>
+                        <WrapPanel Name="QuestionOptions"/>
+                      </StackPanel>
+                    </Border>
+
+                    <!-- Tab Switcher: Output vs Live Activity -->
+                    <StackPanel Orientation="Horizontal">
+                      <Button Name="TabOutputBtn" Style="{StaticResource PillBtn}" Content="Output" Margin="0,0,8,0"/>
+                      <Button Name="TabActivityBtn" Style="{StaticResource PillBtn}" Content="Live Activity (0)"/>
+                    </StackPanel>
                   </StackPanel>
-                </Border>
-                <TextBox Name="SessionAnswer" IsReadOnly="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
-                         VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Session Output"/>
-              </DockPanel>
-            </Border>
+
+                  <Grid>
+                    <TextBox Name="SessionAnswer" IsReadOnly="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
+                             VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                             AutomationProperties.Name="Session Output"/>
+                    <ListBox Name="ActivityFeedList" Visibility="Collapsed">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="Auto"/>
+                              <ColumnDefinition Width="*"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{Binding BadgeBg}" CornerRadius="6" Padding="8,2" Margin="0,0,10,0" VerticalAlignment="Top">
+                              <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="Bold"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12.5"/>
+                              <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding ActionLabel}" FontSize="11" Foreground="{StaticResource Muted}" VerticalAlignment="Top"/>
+                          </Grid>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </Grid>
+                </DockPanel>
+              </Border>
+            </Grid>
 
             <!-- 3. Accounts -->
             <Grid Name="Accounts" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
 
-              <!-- Codex Accounts -->
               <Border Style="{StaticResource Card}">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
                     <DockPanel Margin="0,0,0,8">
-                      <TextBlock Name="CodexAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Accounts"/>
-                      <Border Name="CodexActiveBadge" DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="8" Padding="9,4" HorizontalAlignment="Right">
+                      <Border Name="CodexActiveBadge" DockPanel.Dock="Right" Background="#0B2922" BorderBrush="#195243" BorderThickness="1" CornerRadius="8" Padding="9,4">
                         <TextBlock Name="CodexActiveText" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
                       </Border>
+                      <TextBlock Name="CodexAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Accounts"/>
                     </DockPanel>
                     <TextBlock Name="CodexAccountsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                Text="Your active Codex login is detected and saved automatically. Add more accounts below and switch in one click from PC or StickS3."/>
                   </StackPanel>
 
                   <WrapPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
-                    <Button Name="LoginCodexAccount" Style="{StaticResource PrimaryBtn}" Content="+ Add Codex Account"/>
+                    <Button Name="LoginCodexAccount" Style="{StaticResource PrimaryBtn}" Content="+ Add Codex Account" Margin="0,0,8,0"/>
                     <Button Name="RefreshAccountsBtn" Content="Refresh"/>
                   </WrapPanel>
 
@@ -1045,10 +1270,10 @@
                             <TextBlock Text="{Binding Badge}" Foreground="{Binding BadgeFg}" FontSize="10.5" FontWeight="Bold"/>
                           </Border>
                           <Button Grid.Column="1" Tag="switch" CommandParameter="{Binding Id}" Content="{Binding ActionLabel}"
-                                  Margin="8,0,6,0" Padding="11,5" FontSize="12" Visibility="{Binding ActionVisibility}"
+                                  Margin="8,0,6,0" Padding="11,5" MinHeight="28" FontSize="12" Visibility="{Binding ActionVisibility}"
                                   Background="#1B2848" BorderBrush="#4162B5"/>
                           <Button Grid.Column="2" Tag="delete" CommandParameter="{Binding Id}" Content="✕"
-                                  Margin="0" Padding="9,5" FontSize="11.5" Background="#25131B" BorderBrush="#4C1D2D" Foreground="#FDA4AF"/>
+                                  Margin="0" Padding="9,4" MinHeight="28" FontSize="11.5" Background="#25121B" BorderBrush="#541D32" Foreground="#FDA4AF"/>
                         </Grid>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -1056,25 +1281,23 @@
                 </DockPanel>
               </Border>
 
-              <!-- Antigravity Account + Subscription -->
               <Border Grid.Column="2" Style="{StaticResource Card}">
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
                     <DockPanel Margin="0,0,0,8">
-                      <TextBlock Name="AgyAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Account"/>
-                      <Border Name="AgyActiveBadge" DockPanel.Dock="Right" Background="#12233E" BorderBrush="#294F88" BorderThickness="1" CornerRadius="8" Padding="9,4" HorizontalAlignment="Right">
+                      <Border Name="AgyActiveBadge" DockPanel.Dock="Right" Background="#10223D" BorderBrush="#264C84" BorderThickness="1" CornerRadius="8" Padding="9,4">
                         <TextBlock Name="AgyActiveText" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Blue}" Text="Checking..."/>
                       </Border>
+                      <TextBlock Name="AgyAccountsTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Account"/>
                     </DockPanel>
                     <TextBlock Name="AgyAccountsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
                                Text="Antigravity uses your Google account directly inside Antigravity. Active plan tier and weekly AI quotas are synced below."/>
 
-                    <!-- Subscription & Quota Card -->
-                    <Border Name="AgySubCard" Background="#0B0F19" BorderBrush="#24314D" BorderThickness="1" CornerRadius="14" Padding="15">
+                    <Border Name="AgySubCard" Background="#080B13" BorderBrush="#212D48" BorderThickness="1" CornerRadius="13" Padding="14">
                       <StackPanel>
                         <DockPanel Margin="0,0,0,8">
-                          <Border Name="AgyPlanBadge" DockPanel.Dock="Left" Background="#19284F" BorderBrush="#4E77E6" BorderThickness="1" CornerRadius="7" Padding="9,3">
-                            <TextBlock Name="AgyPlanText" FontSize="11.5" FontWeight="Bold" Foreground="#94B5FF" Text="PRO PLAN"/>
+                          <Border Name="AgyPlanBadge" DockPanel.Dock="Left" Background="#17244A" BorderBrush="#4D75E3" BorderThickness="1" CornerRadius="7" Padding="9,3">
+                            <TextBlock Name="AgyPlanText" FontSize="11" FontWeight="Bold" Foreground="#9AB5FF" Text="PRO PLAN"/>
                           </Border>
                           <TextBlock Name="AgyCreditsText" DockPanel.Dock="Right" HorizontalAlignment="Right" FontSize="12"
                                      FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="0 credits"/>
@@ -1141,27 +1364,32 @@
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
-                <WrapPanel Grid.Row="2" Margin="0,14,0,10">
-                  <Button Name="ShowCode" Content="Show Code on Stick"/>
-                  <Button Name="PairUsb" Style="{StaticResource PrimaryBtn}" Content="Pair via USB"/>
-                  <Button Name="FlashStickBtn" Content="Flash Firmware (USB)"/>
-                  <Button Name="PairUsbCode" Content="USB with Code"/>
-                  <Button Name="FindDevices" Content="Scan LAN"/>
-                  <Button Name="ForgetDevice" Style="{StaticResource DangerBtn}" Content="Remove Pairing"/>
+                <WrapPanel Grid.Row="2" Margin="0,14,0,12">
+                  <Button Name="ShowCode" Content="Show Code on Stick" Margin="0,0,8,6"/>
+                  <Button Name="PairUsb" Style="{StaticResource PrimaryBtn}" Content="Pair via USB" Margin="0,0,8,6"/>
+                  <Button Name="FlashStickBtn" Content="Flash Firmware (USB)" Margin="0,0,8,6"/>
+                  <Button Name="PairUsbCode" Content="USB with Code" Margin="0,0,8,6"/>
+                  <Button Name="FindDevices" Content="Scan LAN" Margin="0,0,8,6"/>
+                  <Button Name="ForgetDevice" Style="{StaticResource DangerBtn}" Content="Remove Pairing" Margin="0,0,0,6"/>
                 </WrapPanel>
                 <Grid Grid.Row="3">
                   <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="280"/>
                     <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="260"/>
                     <ColumnDefinition Width="*"/>
                   </Grid.ColumnDefinitions>
                   <StackPanel>
                     <TextBlock Name="PairCodeLabel" Style="{StaticResource FieldLabel}" Text="Pairing code shown on Stick"/>
-                    <WrapPanel>
-                      <TextBox Name="PairCode" Width="168" MaxLength="24" FontFamily="Consolas" Margin="0,0,8,0"/>
-                      <Button Name="PairLan" Style="{StaticResource PrimaryBtn}" Content="Pair Wi-Fi" Margin="0"/>
-                    </WrapPanel>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                      </Grid.ColumnDefinitions>
+                      <TextBox Name="PairCode" MaxLength="24" FontFamily="Consolas"/>
+                      <Button Name="PairLan" Grid.Column="2" Style="{StaticResource PrimaryBtn}" Content="Pair Wi-Fi"/>
+                    </Grid>
                   </StackPanel>
                   <StackPanel Grid.Column="2">
                     <TextBlock Name="DeviceAddressLabel" Style="{StaticResource FieldLabel}" Text="Stick IP Address (optional)"/>
@@ -1180,9 +1408,9 @@
                     <ComboBox Name="WifiDevice" Width="300" Margin="0,0,8,0"/>
                     <Button Name="ScanWifi" Style="{StaticResource PrimaryBtn}" Content="Scan Wi-Fi on Stick"/>
                   </WrapPanel>
-                  <TextBlock Name="WifiStatus" Foreground="{StaticResource Muted}" Margin="0,0,0,12"/>
+                  <TextBlock Name="WifiStatus" Foreground="{StaticResource Muted}" Margin="0,0,0,10"/>
                 </StackPanel>
-                <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
                   <TextBlock Name="NetworkName" Style="{StaticResource FieldLabel}" Text="Select a network from the list"/>
                   <WrapPanel>
                     <PasswordBox Name="WifiPassword" IsEnabled="False" Width="260" Margin="0,0,8,0" AutomationProperties.Name="Wi-Fi Password"/>
@@ -1196,42 +1424,40 @@
             <!-- 6. Remote Control -->
             <ScrollViewer Name="Remote" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
               <StackPanel>
-                <Grid Margin="0,0,0,18">
+                <Grid Margin="0,0,0,16">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="16"/>
                     <ColumnDefinition Width="*"/>
                   </Grid.ColumnDefinitions>
 
-                  <!-- Codex Remote Control -->
                   <Border Style="{StaticResource Card}">
                     <StackPanel>
                       <DockPanel Margin="0,0,0,8">
-                        <TextBlock Name="CodexRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Remote Control"/>
-                        <Border DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                        <Border DockPanel.Dock="Right" Background="#0B2922" BorderBrush="#195243" BorderThickness="1" CornerRadius="7" Padding="8,3">
                           <TextBlock Name="CodexRcStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Mint}" Text="Checking..."/>
                         </Border>
+                        <TextBlock Name="CodexRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Codex Remote Control"/>
                       </DockPanel>
                       <TextBlock Name="CodexRcDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
                                  Text="Enable official Codex Remote Control daemon to send prompts from mobile or StickS3 outside your home network."/>
                       <TextBlock Name="CodexRcDetail" FontSize="12" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                      <WrapPanel Margin="0,0,0,10">
-                        <Button Name="CodexRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon"/>
-                        <Button Name="CodexRcPair" Content="Pairing Code"/>
+                      <WrapPanel>
+                        <Button Name="CodexRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon" Margin="0,0,8,0"/>
+                        <Button Name="CodexRcPair" Content="Pairing Code" Margin="0,0,8,0"/>
                         <Button Name="CodexRcStop" Style="{StaticResource DangerBtn}" Content="Stop"/>
                       </WrapPanel>
-                      <TextBox Name="CodexRcOutput" IsReadOnly="True" Visibility="Collapsed" FontFamily="Consolas" FontSize="12"/>
+                      <TextBox Name="CodexRcOutput" IsReadOnly="True" Visibility="Collapsed" FontFamily="Consolas" FontSize="12" Margin="0,10,0,0"/>
                     </StackPanel>
                   </Border>
 
-                  <!-- Antigravity Remote Control -->
                   <Border Grid.Column="2" Style="{StaticResource Card}">
                     <StackPanel>
                       <DockPanel Margin="0,0,0,8">
-                        <TextBlock Name="AgyRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Remote Control"/>
-                        <Border DockPanel.Dock="Right" Background="#12233E" BorderBrush="#294F88" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                        <Border DockPanel.Dock="Right" Background="#10223D" BorderBrush="#264C84" BorderThickness="1" CornerRadius="7" Padding="8,3">
                           <TextBlock Name="AgyRcStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Blue}" Text="Checking..."/>
                         </Border>
+                        <TextBlock Name="AgyRcTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="Antigravity Remote Control"/>
                       </DockPanel>
                       <TextBlock Name="AgyRcDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
                                  Text="Manage the Antigravity remote-control background daemon so your PC appears in mobile and remote sessions."/>
@@ -1239,37 +1465,36 @@
                       <TextBlock Name="AgyRcNameLabel" Style="{StaticResource FieldLabel}" Text="Instance name (optional)"/>
                       <TextBox Name="AgyRcName" MaxLength="48" Margin="0,0,0,12"/>
                       <WrapPanel>
-                        <Button Name="AgyRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon"/>
-                        <Button Name="AgyRcStop" Style="{StaticResource DangerBtn}" Content="Stop"/>
+                        <Button Name="AgyRcStart" Style="{StaticResource PrimaryBtn}" Content="Start Daemon" Margin="0,0,8,0"/>
+                        <Button Name="AgyRcStop" Style="{StaticResource DangerBtn}" Content="Stop" Margin="0,0,8,0"/>
                         <Button Name="RefreshRemoteBtn" Content="Refresh"/>
                       </WrapPanel>
                     </StackPanel>
                   </Border>
                 </Grid>
 
-                <!-- StickS3 Encrypted Relay / Tunnel -->
                 <Border Style="{StaticResource Card}">
                   <StackPanel>
                     <DockPanel Margin="0,0,0,8">
-                      <TextBlock Name="RelayTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="StickS3 Away-From-Home Encrypted Relay"/>
-                      <Border DockPanel.Dock="Right" Background="#161D2E" BorderBrush="{StaticResource LineBright}" BorderThickness="1" CornerRadius="7" Padding="8,3" HorizontalAlignment="Right">
+                      <Border DockPanel.Dock="Right" Background="#141B2D" BorderBrush="{StaticResource LineBright}" BorderThickness="1" CornerRadius="7" Padding="8,3">
                         <TextBlock Name="LocalRelayStatus" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Text="Local relay stopped"/>
                       </Border>
+                      <TextBlock Name="RelayTitle" Style="{StaticResource SectionTitle}" Margin="0" Text="StickS3 Away-From-Home Encrypted Relay"/>
                     </DockPanel>
                     <TextBlock Name="RelayDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
                                Text="Connects your StickS3 over any hotspot to your home PC using end-to-end AES-256-GCM + HMAC encryption. Run the built-in relay behind a tunnel or reverse proxy."/>
                     <WrapPanel Margin="0,0,0,12">
-                      <Button Name="StartLocalRelay" Style="{StaticResource PrimaryBtn}" Content="Start Built-In Relay (8793)"/>
+                      <Button Name="StartLocalRelay" Style="{StaticResource PrimaryBtn}" Content="Start Built-In Relay (8793)" Margin="0,0,8,0"/>
                       <Button Name="StopLocalRelay" Content="Stop Built-In Relay"/>
                     </WrapPanel>
                     <TextBlock Name="RelayAddressLabel" Style="{StaticResource FieldLabel}" Text="Relay Endpoint URL (http://...)"/>
                     <TextBox Name="RelayAddress" MaxLength="180" Margin="0,0,0,12"/>
                     <WrapPanel>
-                      <Button Name="SaveRelay" Style="{StaticResource PrimaryBtn}" Content="Save URL"/>
-                      <Button Name="SyncRelay" Content="Push URL to Stick"/>
-                      <Button Name="TestRelay" Content="Test Connection"/>
-                      <Button Name="ExportChannels" Content="Export Channel Keys"/>
-                      <Button Name="ClearRelay" Style="{StaticResource DangerBtn}" Content="Clear URL"/>
+                      <Button Name="SaveRelay" Style="{StaticResource PrimaryBtn}" Content="Save URL" Margin="0,0,8,6"/>
+                      <Button Name="SyncRelay" Content="Push URL to Stick" Margin="0,0,8,6"/>
+                      <Button Name="TestRelay" Content="Test Connection" Margin="0,0,8,6"/>
+                      <Button Name="ExportChannels" Content="Export Channel Keys" Margin="0,0,8,6"/>
+                      <Button Name="ClearRelay" Style="{StaticResource DangerBtn}" Content="Clear URL" Margin="0,0,0,6"/>
                     </WrapPanel>
                   </StackPanel>
                 </Border>
@@ -1279,7 +1504,7 @@
             <!-- 7. Settings -->
             <ScrollViewer Name="Settings" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
               <StackPanel>
-                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                   <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                       <TextBlock Name="AutostartStateText" Text="Disabled" Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,12,0"/>
@@ -1293,10 +1518,10 @@
                   </DockPanel>
                 </Border>
 
-                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                   <StackPanel>
                     <TextBlock Name="SettingsLangTitle" Style="{StaticResource SectionTitle}" Text="Language"/>
-                    <TextBlock Name="SettingsLangDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                    <TextBlock Name="SettingsLangDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,10"
                                Text="English is enabled by default. Changes apply to Windows and automatically sync to a connected StickS3."/>
                     <WrapPanel>
                       <ComboBox Name="LanguagePicker" Width="240" Margin="0,0,10,0">
@@ -1308,21 +1533,22 @@
                   </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                   <StackPanel>
                     <TextBlock Name="SettingsProjectsTitle" Style="{StaticResource SectionTitle}" Text="New Projects Directory"/>
-                    <TextBlock Name="SettingsProjectsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                    <TextBlock Name="SettingsProjectsDesc" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,0,0,10"
                                Text="New random-named projects created from StickS3 (e.g. solar-star) or Windows are created inside this directory."/>
                     <Grid>
                       <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="8"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="8"/>
                         <ColumnDefinition Width="Auto"/>
                       </Grid.ColumnDefinitions>
                       <TextBox Name="ProjectsRootInput"/>
                       <Button Name="BrowseProjectsRoot" Grid.Column="2" Content="Browse..."/>
-                      <Button Name="SaveProjectsRoot" Grid.Column="3" Style="{StaticResource PrimaryBtn}" Content="Save Folder" Margin="0"/>
+                      <Button Name="SaveProjectsRoot" Grid.Column="4" Style="{StaticResource PrimaryBtn}" Content="Save Folder"/>
                     </Grid>
                   </StackPanel>
                 </Border>
@@ -1331,11 +1557,11 @@
                   <StackPanel>
                     <TextBlock Name="SettingsAboutTitle" Style="{StaticResource SectionTitle}" Text="Updates, Setup Wizard &amp; Folders"/>
                     <TextBlock Name="SettingsAboutDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Text="AgentDeck (v1 Preview) · Check GitHub Releases for updates, run the setup wizard, or open local folders."/>
+                               Text="AgentDeck v2.0 · Check GitHub Releases for updates, run the setup wizard, or open local folders."/>
                     <WrapPanel>
-                      <Button Name="CheckUpdateBtn" Style="{StaticResource PrimaryBtn}" Content="Check for Updates"/>
-                      <Button Name="OpenWizardBtn" Content="Run Setup Wizard"/>
-                      <Button Name="OpenDataFolderBtn" Content="Open Data Folder"/>
+                      <Button Name="CheckUpdateBtn" Style="{StaticResource PrimaryBtn}" Content="Check for Updates" Margin="0,0,8,0"/>
+                      <Button Name="OpenWizardBtn" Content="Run Setup Wizard" Margin="0,0,8,0"/>
+                      <Button Name="OpenDataFolderBtn" Content="Open Data Folder" Margin="0,0,8,0"/>
                       <Button Name="OpenAppFolderBtn" Content="Open App Folder"/>
                     </WrapPanel>
                   </StackPanel>
@@ -1348,12 +1574,12 @@
               <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                   <TextBlock Name="FeedbackTitle" Style="{StaticResource SectionTitle}" Text="Send Bug Report or Feature Request"/>
-                  <TextBlock Name="FeedbackDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                  <TextBlock Name="FeedbackDesc" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
                              Text="Submit a Bug Report, Feature Request, or general feedback directly to GitHub (github.com/natekk8/agentdeck)."/>
                   <TextBlock Name="FeedbackKindLabel" Style="{StaticResource FieldLabel}" Text="Category"/>
-                  <WrapPanel Margin="0,0,0,8">
-                    <Button Name="ReportCatBug" Style="{StaticResource PillBtn}" Content="Bug Report"/>
-                    <Button Name="ReportCatFeature" Style="{StaticResource PillBtn}" Content="Feature Request"/>
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button Name="ReportCatBug" Style="{StaticResource PillBtn}" Content="Bug Report" Margin="0,0,8,0"/>
+                    <Button Name="ReportCatFeature" Style="{StaticResource PillBtn}" Content="Feature Request" Margin="0,0,8,0"/>
                     <Button Name="ReportCatOther" Style="{StaticResource PillBtn}" Content="Other"/>
                   </WrapPanel>
                   <TextBlock Name="ReportTitleLabel" Style="{StaticResource FieldLabel}" Text="Title"/>
@@ -1373,8 +1599,8 @@
                     </StackPanel>
                   </DockPanel>
                   <WrapPanel>
-                    <Button Name="SendReportBtn" Style="{StaticResource PrimaryBtn}" Content="Submit Report"/>
-                    <TextBlock Name="ReportStatusText" FontSize="12.5" Foreground="{StaticResource Mint}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <Button Name="SendReportBtn" Style="{StaticResource PrimaryBtn}" Content="Submit Report" Margin="0,0,10,0"/>
+                    <TextBlock Name="ReportStatusText" FontSize="12.5" Foreground="{StaticResource Mint}" VerticalAlignment="Center"/>
                   </WrapPanel>
                 </StackPanel>
 
@@ -1395,7 +1621,7 @@
                   <RotateTransform x:Name="SpinnerRotate" Angle="0"/>
                 </Grid.RenderTransform>
                 <Ellipse Width="16" Height="16" Stroke="#233150" StrokeThickness="2"/>
-                <Path Data="M8,1 A7,7 0 0,1 15,8" Stroke="#5F8BFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                <Path Data="M8,1 A7,7 0 0,1 15,8" Stroke="#5B7CFA" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
               </Grid>
               <ProgressBar Name="Activity" Width="120" Height="4"
                            IsIndeterminate="False" Visibility="Collapsed" Foreground="{StaticResource Accent}" Background="#171E30" BorderThickness="0"/>
@@ -1404,15 +1630,14 @@
         </Grid>
       </Grid>
 
-      <!-- First-Run Apple-style Onboarding Overlay -->
-      <Grid Name="OnboardingOverlay" Grid.ColumnSpan="2" Background="#D6060910" Visibility="Collapsed">
+      <!-- First-Run Onboarding Overlay -->
+      <Grid Name="OnboardingOverlay" Grid.ColumnSpan="2" Background="#DC05070C" Visibility="Collapsed">
         <Border Name="OnboardingCard" Width="570" VerticalAlignment="Center" HorizontalAlignment="Center"
-                Background="#0F1421" BorderBrush="#283654" BorderThickness="1" CornerRadius="22" Padding="28">
+                Background="#0D121F" BorderBrush="#283654" BorderThickness="1" CornerRadius="22" Padding="28">
           <StackPanel>
-            <!-- Top Emblem + Step indicator -->
             <DockPanel Margin="0,0,0,18">
               <Border DockPanel.Dock="Right" Background="#162038" BorderBrush="#2D406B" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Top">
-                <TextBlock Name="OnbStepBadge" Text="Step 1 of 3" FontSize="11.5" FontWeight="SemiBold" Foreground="#94B5FF"/>
+                <TextBlock Name="OnbStepBadge" Text="Step 1 of 3" FontSize="11.5" FontWeight="SemiBold" Foreground="#9AB5FF"/>
               </Border>
               <StackPanel Orientation="Horizontal">
                 <Border Width="48" Height="48" CornerRadius="13" Background="#141C30" BorderBrush="#283554" BorderThickness="1" Padding="4">
@@ -1431,8 +1656,8 @@
                   </Viewbox>
                 </Border>
                 <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                  <TextBlock Text="AgentDeck (v1.1)" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-                  <TextBlock Name="OnbTagline" Text="Remote AI IDE control in your pocket." FontSize="12" Foreground="#81A6F8" Margin="0,2,0,0"/>
+                  <TextBlock Text="AgentDeck (v2.0)" FontSize="19" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                  <TextBlock Name="OnbTagline" Text="Remote AI IDE control in your pocket." FontSize="12" Foreground="#7F9EF8" Margin="0,2,0,0"/>
                 </StackPanel>
               </StackPanel>
             </DockPanel>
@@ -1450,13 +1675,13 @@
                   <ColumnDefinition Width="12"/>
                   <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Button Name="OnbLangEnBtn" Margin="0" Padding="16,14" HorizontalContentAlignment="Left">
+                <Button Name="OnbLangEnBtn" Padding="16,14" HorizontalContentAlignment="Left">
                   <StackPanel>
                     <TextBlock Name="OnbLangEnTitle" Text="English" FontSize="15" FontWeight="Bold"/>
                     <TextBlock Name="OnbLangEnSub" Text="Default interface language" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>
                   </StackPanel>
                 </Button>
-                <Button Name="OnbLangPlBtn" Grid.Column="2" Margin="0" Padding="16,14" HorizontalContentAlignment="Left">
+                <Button Name="OnbLangPlBtn" Grid.Column="2" Padding="16,14" HorizontalContentAlignment="Left">
                   <StackPanel>
                     <TextBlock Name="OnbLangPlTitle" Text="Polski" FontSize="15" FontWeight="Bold"/>
                     <TextBlock Name="OnbLangPlSub" Text="Polski interfejs na PC i Sticku" FontSize="11.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>
@@ -1467,7 +1692,7 @@
 
             <!-- Step 2: Autostart & Wake on LAN -->
             <StackPanel Name="OnbStep2" Visibility="Collapsed" Margin="0,0,0,22">
-              <Border Background="#0B0F1A" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
+              <Border Background="#080B13" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
                 <DockPanel>
                   <CheckBox Name="OnbAutoToggle" DockPanel.Dock="Right" Style="{StaticResource AppleSwitch}" IsChecked="True" VerticalAlignment="Center" Margin="14,0,0,0"/>
                   <StackPanel>
@@ -1477,22 +1702,22 @@
                   </StackPanel>
                 </DockPanel>
               </Border>
-              <TextBlock Name="OnbAutoHint" FontSize="11.5" Foreground="#81A6F8" Margin="4,10,4,0" TextWrapping="Wrap"
+              <TextBlock Name="OnbAutoHint" FontSize="11.5" Foreground="#7F9EF8" Margin="4,10,4,0" TextWrapping="Wrap"
                          Text="Recommended: allows StickS3 to connect instantly whenever your PC wakes via Wake on LAN."/>
             </StackPanel>
 
             <!-- Step 3: StickS3 Pairing -->
             <StackPanel Name="OnbStep3" Visibility="Collapsed" Margin="0,0,0,22">
-              <Border Background="#0B0F1A" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
+              <Border Background="#080B13" BorderBrush="#26334E" BorderThickness="1" CornerRadius="14" Padding="18">
                 <StackPanel>
                   <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <Ellipse Name="OnbStickDot" Width="10" Height="10" Fill="#34D399" Margin="0,0,9,0"/>
+                    <Ellipse Name="OnbStickDot" Width="10" Height="10" Fill="#10B981" Margin="0,0,9,0"/>
                     <TextBlock Name="OnbStickState" Text="Checking USB connection..." FontSize="14.5" FontWeight="SemiBold"/>
                   </StackPanel>
                   <TextBlock Name="OnbStickDetail" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
                              Text="Plug your M5Stick S3 into USB-C to pair or flash the latest AgentDeck firmware in one click, or skip and do it anytime in Devices."/>
                   <WrapPanel>
-                    <Button Name="OnbPairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair StickS3 via USB"/>
+                    <Button Name="OnbPairUsbBtn" Style="{StaticResource PrimaryBtn}" Content="Pair StickS3 via USB" Margin="0,0,8,0"/>
                     <Button Name="OnbFlashUsbBtn" Content="Flash Latest Firmware (USB)"/>
                   </WrapPanel>
                 </StackPanel>
@@ -1501,10 +1726,10 @@
 
             <!-- Footer Buttons -->
             <DockPanel>
-              <Button Name="OnbSkipBtn" DockPanel.Dock="Left" Content="Skip Setup" Margin="0" Background="Transparent" BorderBrush="Transparent" Foreground="{StaticResource Muted}"/>
+              <Button Name="OnbSkipBtn" DockPanel.Dock="Left" Content="Skip Setup" Background="Transparent" BorderBrush="Transparent" Foreground="{StaticResource Muted}"/>
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Name="OnbBackBtn" Content="Back" Visibility="Collapsed" Margin="0,0,8,0"/>
-                <Button Name="OnbNextBtn" Style="{StaticResource PrimaryBtn}" Content="Continue" Margin="0"/>
+                <Button Name="OnbNextBtn" Style="{StaticResource PrimaryBtn}" Content="Continue"/>
               </StackPanel>
             </DockPanel>
           </StackPanel>
@@ -1512,13 +1737,13 @@
       </Grid>
 
       <!-- After-Update What's New Overlay -->
-      <Grid Name="AfterUpdateOverlay" Grid.ColumnSpan="2" Background="#D6060910" Visibility="Collapsed">
-        <Border Name="AfterUpdateCard" Width="540" VerticalAlignment="Center" HorizontalAlignment="Center"
-                Background="#0F1421" BorderBrush="#314773" BorderThickness="1" CornerRadius="22" Padding="28">
+      <Grid Name="AfterUpdateOverlay" Grid.ColumnSpan="2" Background="#DC05070C" Visibility="Collapsed">
+        <Border Name="AfterUpdateCard" Width="560" VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#0D121F" BorderBrush="#314773" BorderThickness="1" CornerRadius="22" Padding="28">
           <StackPanel>
             <DockPanel Margin="0,0,0,14">
-              <Border DockPanel.Dock="Right" Background="#0F2D24" BorderBrush="#1F5B4A" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Center">
-                <TextBlock Name="AfterUpdateBadge" Text="v1.1" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Mint}"/>
+              <Border DockPanel.Dock="Right" Background="#0B2922" BorderBrush="#195243" BorderThickness="1" CornerRadius="10" Padding="10,4" VerticalAlignment="Center">
+                <TextBlock Name="AfterUpdateBadge" Text="v2.0" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Mint}"/>
               </Border>
               <StackPanel Orientation="Horizontal">
                 <Border Width="44" Height="44" CornerRadius="12" Background="#141C30" BorderBrush="#283554" BorderThickness="1" Padding="4">
@@ -1537,26 +1762,26 @@
                   </Viewbox>
                 </Border>
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                  <TextBlock Name="AfterUpdateTitle" FontSize="20" FontWeight="Bold" Text="Updated to AgentDeck (v1 Preview)"/>
-                  <TextBlock Name="AfterUpdateSub" FontSize="12" Foreground="#81A6F8" Text="Everything is ready on your PC." Margin="0,2,0,0"/>
+                  <TextBlock Name="AfterUpdateTitle" FontSize="20" FontWeight="Bold" Text="Updated to AgentDeck v2.0"/>
+                  <TextBlock Name="AfterUpdateSub" FontSize="12" Foreground="#7F9EF8" Text="Everything is ready on your PC." Margin="0,2,0,0"/>
                 </StackPanel>
               </StackPanel>
             </DockPanel>
-            <Border Background="#0B0F1A" BorderBrush="#23304A" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,14">
+            <Border Background="#080B13" BorderBrush="#23304A" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,14">
               <TextBlock Name="AfterUpdateNotes" FontSize="13" Foreground="#D4DCEB" TextWrapping="Wrap" LineHeight="20"
-                         Text="• Cleaner Apple-style layout with ambient animations and responsive sizing&#10;• Live Auto-Updater &amp; 1-click USB firmware prompt for StickS3&#10;• Working Antigravity Remote Control, Relay &amp; Sentry feedback reporting"/>
+                         Text="• Obsidian Glass Studio redesign with custom prompt ordering (drag &amp; drop)&#10;• Sequential Prompt Chains &amp; autonomous Auto-Shutdown PC even if Stick disconnects&#10;• Deep Antigravity &amp; Codex Live Activity feed (tools, commands, browser, subagents)"/>
             </Border>
-            <Border Background="#0B0F1A" BorderBrush="#243554" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,18">
+            <Border Background="#080B13" BorderBrush="#243554" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,18">
               <DockPanel>
                 <Button Name="AfterUpdateFlashBtn" DockPanel.Dock="Right" Content="Flash StickS3 (USB)" Margin="12,0,0,0" VerticalAlignment="Center"/>
                 <StackPanel VerticalAlignment="Center">
-                  <TextBlock Name="AfterUpdateUsbTitle" FontSize="13" FontWeight="SemiBold" Text="StickS3 Firmware (v1.0.0)"/>
+                  <TextBlock Name="AfterUpdateUsbTitle" FontSize="13" FontWeight="SemiBold" Text="StickS3 Firmware (v2.0.0)"/>
                   <TextBlock Name="AfterUpdateUsbHint" FontSize="11.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"
-                             Text="Plug in M5Stick S3 via USB-C to install the latest firmware."/>
+                             Text="Plug in M5Stick S3 via USB-C to install the latest v2.0.0 firmware."/>
                 </StackPanel>
               </DockPanel>
             </Border>
-            <Button Name="AfterUpdateCloseBtn" Style="{StaticResource PrimaryBtn}" Content="Continue to AgentDeck" HorizontalAlignment="Right" Margin="0"/>
+            <Button Name="AfterUpdateCloseBtn" Style="{StaticResource PrimaryBtn}" Content="Continue to AgentDeck" HorizontalAlignment="Right"/>
           </StackPanel>
         </Border>
       </Grid>

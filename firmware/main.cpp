@@ -17,20 +17,21 @@ constexpr int Width = 240;
 constexpr int Height = 135;
 
 constexpr size_t FrameLimit = 16384;
-constexpr uint16_t Background = 0x0021;
-constexpr uint16_t Panel = 0x08A4;
-constexpr uint16_t Focus = 0x21ac;
-constexpr uint16_t Outline = 0x1908;
+constexpr uint16_t Background = 0x0841;
+constexpr uint16_t Panel = 0x10A4;
+constexpr uint16_t Focus = 0x1D6F;
+constexpr uint16_t Outline = 0x2149;
 constexpr uint16_t Text = 0xF7BF;
-constexpr uint16_t Muted = 0xADDA;
-constexpr uint16_t Mint = 0x6739;
-constexpr uint16_t Yellow = 0xFE2D;
-constexpr uint16_t Pink = 0xFC93;
-constexpr uint16_t Blue = 0x8DDF;
+constexpr uint16_t Muted = 0x9CF3;
+constexpr uint16_t Mint = 0x36B3;
+constexpr uint16_t Yellow = 0xFDE4;
+constexpr uint16_t Pink = 0xF9CA;
+constexpr uint16_t Blue = 0x6DDF;
+constexpr uint16_t Violet = 0xA37F;
 constexpr char Frame[] = "AD1 ";
 
-enum class Page { Home, Projects, Models, Limits, Prompts, Confirm,
-                  Sessions, Job, Stop, Settings, Pair, Cooldown, Wifi, WifiScan, Keys, Hosts,
+enum class Page { Home, Projects, Models, Limits, Prompts, Confirm, LaunchAction, Chain,
+                  Sessions, Job, JobMenu, Stop, Settings, Pair, Cooldown, Wifi, WifiScan, Keys, Hosts,
                   WakeHosts, ShutdownHosts, Shutdown, Effort, Accounts, Language, Question };
 
 struct Row {
@@ -71,17 +72,34 @@ inline const char* tr(const char* en, const char* pl) {
     return langPl ? pl : en;
 }
 
+struct ChainStep {
+    String provider;
+    String project;
+    String projectLabel;
+    String model;
+    String effort;
+    String prompt;
+    String promptLabel;
+    String mode;
+};
+
 View view{Page::Home};
 std::vector<View> history;
+std::vector<ChainStep> chainDraft;
+std::vector<ChainStep> pendingChainSteps;
 std::vector<WifiNetwork> scannedNetworks;
 std::vector<WifiProfile> knownNetworks;
 String provider, project, projectLabel, model, modelLabel, effort, effortLabel, prompt, promptLabel, promptDesc, jobId;
+String appendAfterJobId;
 String accountId;
 String questionId, questionText, seenQuestionId;
 std::vector<String> questionOptions;
 int answerChoice = -1;
-String jobState, jobDetail, jobPreview, jobLabel, errorText;
+String jobState, jobDetail, jobPreview, jobLabel, jobPhase, jobChainId, jobActiveTool, errorText;
+int jobChainIndex = 0, jobChainTotal = 0;
 bool statusMint = false;
+bool shutdownAfter = false, shutdownSettling = false, launchShutdownAfter = false;
+int chainQueued = 0;
 String jobOutput;
 String pinnedProject, powerHost, powerLabel;
 String pendingId, pendingBody, pendingOp, source;
@@ -166,7 +184,9 @@ void sendFrame(const String& frame) {
 
 bool isMutation(const String& op) {
     return op == "start" || op == "stop" || op == "power" || op == "retry" ||
-           op == "create_project" || op == "switch_account" || op == "answer";
+           op == "create_project" || op == "switch_account" || op == "answer" ||
+           op == "chain_start" || op == "chain_append" || op == "chain_cancel" ||
+           op == "shutdown_after";
 }
 
 bool usbOnline() {
@@ -198,6 +218,34 @@ void request(const char* op, bool armed = false) {
         doc["effort"] = effort;
         doc["prompt"] = prompt;
         doc["mode"] = sessionMode;
+        if (launchShutdownAfter) doc["shutdown_after"] = true;
+    }
+    if (!strcmp(op, "chain_start")) {
+        auto steps = doc["steps"].to<JsonArray>();
+        for (const auto& s : pendingChainSteps) {
+            auto obj = steps.add<JsonObject>();
+            obj["provider"] = s.provider;
+            obj["project"] = s.project;
+            obj["model"] = s.model;
+            obj["effort"] = s.effort;
+            obj["prompt"] = s.prompt;
+            obj["mode"] = s.mode;
+        }
+        if (launchShutdownAfter) doc["shutdown_after"] = true;
+    }
+    if (!strcmp(op, "chain_append")) {
+        doc["after_job"] = appendAfterJobId;
+        doc["project"] = project;
+        doc["model"] = model;
+        doc["effort"] = effort;
+        doc["prompt"] = prompt;
+        doc["mode"] = sessionMode;
+    }
+    if (!strcmp(op, "chain_cancel")) {
+        doc["chain_id"] = jobChainId;
+    }
+    if (!strcmp(op, "shutdown_after")) {
+        doc["enabled"] = armed;
     }
     if (!strcmp(op, "answer")) {
         doc["choice"] = answerChoice;
@@ -245,6 +293,7 @@ void home() {
     errorText = "";
     statusMint = false;
     pinnedProject = "";
+    appendAfterJobId = "";
     statusNow();
 }
 
@@ -258,6 +307,8 @@ void back() {
     }
     view = history.back();
     history.pop_back();
+    if (view.page == Page::JobMenu || view.page == Page::Job || view.page == Page::Home)
+        appendAfterJobId = "";
     errorText = "";
     statusMint = false;
     statusNow();
@@ -529,14 +580,17 @@ void applyStatus(JsonObjectConst doc) {
     powered = doc["armed"] | powered;
     powerAllowed = doc["power_allowed"] | powerAllowed;
     powerSent = doc["power_sent"] | powerSent;
+    shutdownAfter = doc["shutdown_after"] | shutdownAfter;
+    shutdownSettling = doc["shutdown_settling"] | shutdownSettling;
+    chainQueued = doc["chain_queued"] | chainQueued;
     demo = doc["demo"] | demo;
     if (doc["armed"].is<bool>()) {
         cooldown = doc["cooldown"].isNull() ? -1 : doc["cooldown"].as<int>();
         cooldownAt = millis();
     }
     if (cooldown >= 0 && (view.page == Page::Home || view.page == Page::Job ||
-                         view.page == Page::Sessions || view.page == Page::Settings ||
-                         view.page == Page::Shutdown)) open(Page::Cooldown);
+                         view.page == Page::JobMenu || view.page == Page::Sessions ||
+                         view.page == Page::Settings || view.page == Page::Shutdown)) open(Page::Cooldown);
 }
 
 void applyJob(JsonObjectConst job) {
@@ -553,6 +607,24 @@ void applyJob(JsonObjectConst job) {
     jobLabel = job["label"].as<String>();
     jobDetail = job["detail"].as<String>();
     jobPreview = job["preview"].as<String>();
+    jobPhase = job["phase"] | "";
+    jobChainId = job["chain_id"] | "";
+    jobChainIndex = job["chain_index"] | 0;
+    jobChainTotal = job["chain_total"] | 0;
+    jobActiveTool = "";
+    for (JsonVariantConst toolItem : job["active_tools"].as<JsonArrayConst>()) {
+        const String t = toolItem | "";
+        if (t.length()) {
+            jobActiveTool = t;
+            break;
+        }
+    }
+    const String jProv = job["provider"] | "";
+    const String jProjId = job["project_id"] | "";
+    const String jProjLbl = job["project_label"] | "";
+    if (jProv.length()) provider = jProv;
+    if (jProjId.length()) project = jProjId;
+    if (jProjLbl.length()) projectLabel = jProjLbl;
     elapsed = job["elapsed"] | 0;
     elapsedAt = millis();
     questionId = questionText = "";
@@ -604,6 +676,9 @@ void applyListing(JsonObjectConst doc, const String& op) {
     if (offset > 0) view.rows.push_back({"<", tr("Previous page", "Poprzednia strona"), "", "", false});
     if (op == "projects" && offset == 0) {
         view.rows.push_back({"@new", tr("+ New Project", "+ Nowy projekt"), tr("Random name", "Losowa nazwa"), "", false});
+    }
+    if (op == "prompts" && offset == 0 && !chainDraft.empty() && appendAfterJobId.isEmpty()) {
+        view.rows.push_back({"@chain", String(tr("Run chain", "Uruchom ciąg")) + " (" + String(chainDraft.size()) + ")", tr("Manage", "Otwórz"), "", false});
     }
     const long long now = doc["now"].as<long long>();
     auto items = doc["items"].as<JsonArrayConst>();
@@ -671,11 +746,39 @@ void accept(const String& body, const char* transport) {
     errorText = doc["error"] | "";
     statusMint = false;
     applyStatus(doc.as<JsonObjectConst>());
-    if (op == "start" || op == "retry") {
+    if (op == "start" || op == "retry" || op == "chain_start") {
+        if (op == "chain_start") {
+            chainDraft.clear();
+            pendingChainSteps.clear();
+        }
+        launchShutdownAfter = false;
         applyJob(doc["job"].as<JsonObjectConst>());
         home();
         open(Page::Sessions);
         open(Page::Job);
+    } else if (op == "chain_append") {
+        appendAfterJobId = "";
+        launchShutdownAfter = false;
+        applyJob(doc["job"].as<JsonObjectConst>());
+        while (!history.empty() && view.page != Page::Job) {
+            view = history.back();
+            history.pop_back();
+        }
+        if (view.page != Page::Job) {
+            home();
+            open(Page::Sessions);
+            open(Page::Job);
+        }
+        errorText = tr("Added to chain", "Dodano do ciągu");
+        statusMint = true;
+    } else if (op == "chain_cancel") {
+        if (view.page == Page::JobMenu) back();
+        errorText = tr("Chain stopped", "Zatrzymano ciąg");
+        statusMint = true;
+    } else if (op == "shutdown_after") {
+        if (view.page == Page::JobMenu) back();
+        errorText = shutdownAfter ? tr("Auto-OFF armed", "Auto-OFF włączone") : tr("Auto-OFF cancelled", "Anulowano Auto-OFF");
+        statusMint = shutdownAfter;
     } else if (op == "create_project") {
         const auto created = doc["project"].as<JsonObjectConst>();
         if (!created.isNull()) {
@@ -722,7 +825,7 @@ const char* title();
 void deviceState(JsonObject result) {
     const bool online = WiFi.status() == WL_CONNECTED;
     result["device"] = decknet::deviceId();
-    result["firmware"] = "1.1.0";
+    result["firmware"] = "2.0.0";
     result["lang"] = langPl ? "pl" : "en";
     result["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
     result["charging"] = batteryCharging;
@@ -874,7 +977,7 @@ void serialInput(const String& line) {
         const esp_partition_t* running = esp_ota_get_running_partition();
         info["ok"] = true;
         info["id"] = ident;
-        info["firmware"] = "AgentDeck 1.1.0";
+        info["firmware"] = "AgentDeck 2.0.0";
         info["lang"] = langPl ? "pl" : "en";
         info["battery"] = batteryPct >= 0 ? batteryPct : constrain(int(M5.Power.getBatteryLevel()), 0, 100);
         info["charging"] = batteryCharging;
@@ -974,8 +1077,11 @@ const char* title() {
         case Page::Limits: return tr("Limits", "Limity konta");
         case Page::Prompts: return tr("Prompts", "Prompty");
         case Page::Confirm: return tr("Choose mode", "Wybierz tryb");
+        case Page::LaunchAction: return tr("Launch", "Uruchom");
+        case Page::Chain: return tr("Prompt Chain", "Ciąg promptów");
         case Page::Sessions: return tr("Sessions", "Sesje");
         case Page::Job: return tr("Task", "Zadanie");
+        case Page::JobMenu: return tr("Task Actions", "Akcje zadania");
         case Page::Question: return tr("Question", "Pytanie");
         case Page::Stop: return tr("Stop?", "Zatrzymać?");
         case Page::Settings: return tr("Settings", "Ustawienia");
@@ -992,6 +1098,25 @@ const char* title() {
         case Page::Language: return tr("Language", "Język");
     }
     return "";
+}
+
+String phaseBadge(const String& ph) {
+    if (ph == "command") return "CMD";
+    if (ph == "subagent") return "SUB";
+    if (ph == "browser") return "WEB";
+    if (ph == "file_edit") return "EDIT";
+    if (ph == "mcp") return "MCP";
+    if (ph == "thinking") return "PLAN";
+    if (ph == "waiting") return "WAIT";
+    if (ph == "retrying") return "RETRY";
+    if (ph == "reply") return "OUT";
+    if (ph == "finishing") return "END";
+    return "";
+}
+
+int jobMenuSize() {
+    const bool activeChain = jobChainId.length() && (jobState == "queued" || jobState == "running" || jobState == "waiting_input");
+    return activeChain ? 4 : 3;
 }
 
 String trimWidth(String name, int width) {
@@ -1093,6 +1218,13 @@ void draw() {
         text(batStr, batX + 5, 5, batColor, batW - 6);
         rightBound = batX - 4;
     }
+    if (shutdownAfter || shutdownSettling) {
+        const int offW = canvas.textWidth("OFF") + 8;
+        const int offX = rightBound - offW - 4;
+        canvas.fillRoundRect(offX, 4, offW, 15, 7, Background);
+        text("OFF", offX + 4, 5, Yellow, offW - 6);
+        rightBound = offX - 4;
+    }
     canvas.setFont(&DeckHeading);
     text(title(), 15, 4, Text, max(48, rightBound - 16));
     canvas.setFont(&DeckText);
@@ -1109,7 +1241,8 @@ void draw() {
         int idx = 0;
         if (hasAgy) { row("Antigravity", 27 + idx * 19, view.cursor == idx, "", Blue); ++idx; }
         if (hasCodex) { row("Codex", 27 + idx * 19, view.cursor == idx, "", Mint); ++idx; }
-        row(active ? String(tr("Sessions", "Sesje")) + " (" + String(active) + ")" : tr("Sessions", "Sesje"), 27 + idx * 19, view.cursor == idx); ++idx;
+        const String sesLabel = active ? String(tr("Sessions", "Sesje")) + " (" + String(active) + ")" : tr("Sessions", "Sesje");
+        row(sesLabel, 27 + idx * 19, view.cursor == idx, shutdownAfter ? "OFF" : "", shutdownAfter ? Yellow : Muted); ++idx;
         row(tr("Settings", "Ustawienia"), 27 + idx * 19, view.cursor == idx);
     } else if (listPage() || localList()) {
         const bool limits = view.page == Page::Limits;
@@ -1122,6 +1255,7 @@ void draw() {
             const bool hasState = (view.page == Page::Sessions || view.page == Page::Accounts) && item.state.length();
             const bool selected = i + view.first == view.cursor;
             const uint16_t badgeColor = item.id == "@new" ? Mint :
+                item.id == "@chain" ? Mint :
                 item.id == "@" ? Yellow :
                 item.id == "@acc" ? Blue :
                 hasState ? stateColor(item.state) : Muted;
@@ -1145,6 +1279,34 @@ void draw() {
         row(tr("Read-only", "Tylko odczyt"), 55, view.cursor == 0, "Read", Blue);
         row(tr("Edit", "Edycja"), 73, view.cursor == 1, "Write", Mint);
         row(tr("Plan & Execute", "Planuj i wykonaj"), 91, view.cursor == 2, "Auto", Yellow);
+    } else if (view.page == Page::LaunchAction) {
+        text(promptLabel, 10, 26, Text);
+        const String sub = projectLabel + " / " + (sessionMode == "read" ? "Read" : sessionMode == "write" ? "Edit" : "Auto");
+        text(sub, 10, 40, Muted);
+        const String runLbl = chainDraft.empty()
+            ? String(tr("Run now", "Uruchom teraz"))
+            : String(tr("Run chain", "Uruchom ciąg")) + " (" + String(chainDraft.size() + 1) + ")";
+        row(runLbl, 55, view.cursor == 0, "Go", Mint);
+        row(tr("Run + Auto-OFF PC", "Uruchom + Wyłącz PC"), 73, view.cursor == 1, "OFF", Yellow);
+        row(tr("+ Add to chain", "+ Dodaj do ciągu"), 91, view.cursor == 2, String(chainDraft.size() + 1), Violet);
+    } else if (view.page == Page::Chain) {
+        const int totalRows = 3 + int(chainDraft.size());
+        const int visible = 4;
+        const int focused = constrain(view.cursor, 0, max(0, totalRows - 1));
+        view.first = constrain(view.first, max(0, focused - visible + 1), focused);
+        for (int i = 0; i < visible && i + view.first < totalRows; ++i) {
+            const int idx = i + view.first;
+            const bool selected = idx == view.cursor;
+            const int y = 27 + i * 19;
+            if (idx == 0) row(String(tr("Start chain", "Uruchom ciąg")) + " (" + String(chainDraft.size()) + ")", y, selected, "Go", Mint);
+            else if (idx == 1) row(tr("Start + Auto-OFF PC", "Start + Wyłącz PC"), y, selected, "OFF", Yellow);
+            else if (idx == 2) row(tr("Clear chain", "Wyczyść ciąg"), y, selected, "Del", Pink);
+            else {
+                const ChainStep& st = chainDraft[idx - 3];
+                const String mTag = st.mode == "read" ? "Read" : st.mode == "write" ? "Edit" : "Auto";
+                row(String(idx - 2) + ". " + st.promptLabel, y, selected, mTag, Muted);
+            }
+        }
     } else if (view.page == Page::Question) {
         drawWrapped2(questionText, 10, 25, Text, 220);
         const int count = int(questionOptions.size());
@@ -1155,26 +1317,51 @@ void draw() {
             row(questionOptions[idx], 53 + i * 19, idx == view.cursor);
         }
     } else if (view.page == Page::Job) {
-        text(jobLabel, 10, 27, Text);
+        if (jobChainTotal > 1) {
+            const String chBadge = String(jobChainIndex) + "/" + String(jobChainTotal);
+            const int cw = canvas.textWidth(chBadge.c_str()) + 8;
+            text(jobLabel, 10, 27, Text, 218 - cw);
+            canvas.fillRoundRect(230 - cw, 26, cw, 14, 4, Panel);
+            text(chBadge, 234 - cw, 27, Violet, cw - 6);
+        } else {
+            text(jobLabel, 10, 27, Text);
+        }
         const int secs = elapsed + (jobState == "running" ? int((millis() - elapsedAt) / 1000) : 0);
         char timeText[16];
         snprintf(timeText, sizeof(timeText), "%02d:%02d", secs / 60, secs % 60);
         canvas.setFont(&DeckHeading);
-        text(stateName(jobState) + "  " + timeText, 10, 45, stateColor(jobState));
+        text(stateName(jobState) + "  " + timeText, 10, 45, stateColor(jobState), 165);
+        canvas.setFont(&DeckText);
+        const String pTag = phaseBadge(jobPhase);
+        if (pTag.length() && jobState == "running") {
+            const int pw = canvas.textWidth(pTag.c_str()) + 8;
+            canvas.fillRoundRect(202 - pw, 44, pw, 14, 4, Focus);
+            text(pTag, 206 - pw, 45, Blue, pw - 6);
+        }
         if (jobState == "running") {
             const int p = (millis() / 250) % 4;
-            for (int i = 0; i < 4; ++i) canvas.fillCircle(208 + 6 * i, 53, 1, i == p ? Blue : Focus);
+            for (int i = 0; i < 4; ++i) canvas.fillCircle(208 + 6 * i, 51, 1, i == p ? Blue : Focus);
         }
-        canvas.setFont(&DeckText);
         const String output = jobState == "finished" && outputLoaded == outputPage ? jobOutput :
                               jobState == "error" || jobState == "limit" ? jobDetail :
+                              jobActiveTool.length() && jobState == "running" ? (jobActiveTool + " · " + (jobPreview.length() ? jobPreview : jobDetail)) :
                               jobPreview.length() ? jobPreview : jobDetail;
         int offset = min(outputOffset, int(output.length()));
         while (offset && offset < int(output.length()) && (output[offset] & 0xc0) == 0x80) --offset;
-        text(output.substring(offset), 10, 68, Muted);
+        text(output.substring(offset), 10, 66, Muted);
         if (jobState == "waiting_input") row(tr("Answer question", "Odpowiedz na pytanie"), 85, true, "A/B/C", Yellow);
-        else if (jobState == "queued" || jobState == "running") row(tr("Stop", "Zatrzymaj"), 85, true);
-        else if (jobState != "stopping") row(tr("Retry as new chat", "Ponów jako nowy czat"), 85, true);
+        else row(tr("Actions / Auto-OFF", "Akcje / Auto-OFF"), 85, true, shutdownAfter ? "OFF ON" : "Hold A", shutdownAfter ? Yellow : Blue);
+    } else if (view.page == Page::JobMenu) {
+        const bool active = jobState == "queued" || jobState == "running" || jobState == "waiting_input";
+        row(shutdownAfter ? tr("Cancel Auto-OFF PC", "Anuluj Auto-OFF PC") : tr("Auto-OFF PC after work", "Wyłącz PC po pracy"),
+            27, view.cursor == 0, shutdownAfter ? "ON" : "OFF", shutdownAfter ? Yellow : Muted);
+        row(tr("+ Chain next prompt", "+ Kolejny prompt"), 46, view.cursor == 1, "Next", Violet);
+        if (active) row(tr("Stop task", "Zatrzymaj zadanie"), 65, view.cursor == 2, "Stop", Pink);
+        else if (jobState != "stopping") row(tr("Retry as new chat", "Ponów jako nowy czat"), 65, view.cursor == 2, "Run", Mint);
+        else row(tr("Back", "Wróć"), 65, view.cursor == 2);
+        if (jobMenuSize() > 3) {
+            row(tr("Cancel entire chain", "Anuluj cały ciąg"), 84, view.cursor == 3, "All", Pink);
+        }
     } else if (view.page == Page::Stop) {
         text(jobLabel, 10, 28, Muted);
         row(tr("Back", "Wróć"), 48, view.cursor == 0);
@@ -1287,7 +1474,9 @@ void draw() {
 int menuSize() {
     if (listPage() || localList()) return view.rows.size();
     if (view.page == Page::Question) return questionOptions.size();
-    if (view.page == Page::Confirm || view.page == Page::Wifi) return 3;
+    if (view.page == Page::Chain) return 3 + chainDraft.size();
+    if (view.page == Page::JobMenu) return jobMenuSize();
+    if (view.page == Page::Confirm || view.page == Page::LaunchAction || view.page == Page::Wifi) return 3;
     if (view.page == Page::Keys) return 3 + strlen(Keys[keyboard]);
     if (view.page == Page::Settings) return 5;
     if (view.page == Page::Home) return (hasAgy ? 1 : 0) + (hasCodex ? 1 : 0) + 2;
@@ -1296,7 +1485,7 @@ int menuSize() {
     return 1;
 }
 
-void startOrRetry(const char* op) {
+void startOrRetry(const char* op, bool flag = false) {
     if (pendingId.length() && isMutation(pendingOp)) return;
     if (idempotentBody.length() && idempotentOp == op) {
         JsonDocument old;
@@ -1304,7 +1493,18 @@ void startOrRetry(const char* op) {
         if (same) {
             if (!strcmp(op, "start")) {
                 same = old["project"] == project && old["model"] == model && old["prompt"] == prompt &&
-                       old["effort"] == effort && old["mode"] == sessionMode;
+                       old["effort"] == effort && old["mode"] == sessionMode &&
+                       (old["shutdown_after"] | false) == launchShutdownAfter;
+            } else if (!strcmp(op, "chain_start")) {
+                same = (old["shutdown_after"] | false) == launchShutdownAfter &&
+                       old["steps"].as<JsonArrayConst>().size() == pendingChainSteps.size();
+            } else if (!strcmp(op, "chain_append")) {
+                same = old["after_job"] == appendAfterJobId && old["project"] == project && old["prompt"] == prompt &&
+                       old["mode"] == sessionMode;
+            } else if (!strcmp(op, "chain_cancel")) {
+                same = old["chain_id"] == jobChainId;
+            } else if (!strcmp(op, "shutdown_after")) {
+                same = (old["enabled"] | false) == flag;
             } else if (!strcmp(op, "retry")) {
                 same = old["job"] == jobId;
             } else if (!strcmp(op, "create_project")) {
@@ -1326,7 +1526,7 @@ void startOrRetry(const char* op) {
             return;
         }
     }
-    request(op);
+    request(op, flag);
 }
 
 void select() {
@@ -1382,17 +1582,22 @@ void select() {
             if (pinnedProject.length()) open(Page::Prompts);
             else open(Page::Projects);
         } else if (view.page == Page::Prompts) {
-            prompt = item.id;
-            promptLabel = item.label;
-            promptDesc = item.desc;
-            open(Page::Confirm);
+            if (item.id == "@chain") {
+                open(Page::Chain);
+            } else {
+                prompt = item.id;
+                promptLabel = item.label;
+                promptDesc = item.desc;
+                open(Page::Confirm);
+            }
         } else if (view.page == Page::Sessions) {
             if (item.id == "@") home();
             else {
                 jobId = item.id;
                 jobLabel = item.label;
                 jobState = item.state;
-                jobPreview = jobDetail = "";
+                jobPreview = jobDetail = jobPhase = jobChainId = jobActiveTool = "";
+                jobChainIndex = jobChainTotal = 0;
                 jobOutput = "";
                 seenQuestionId = "";
                 outputOffset = outputPage = 0;
@@ -1405,7 +1610,56 @@ void select() {
         }
     } else if (view.page == Page::Confirm) {
         sessionMode = view.cursor == 0 ? "read" : view.cursor == 1 ? "write" : "plan_execute";
-        startOrRetry("start");
+        if (appendAfterJobId.length()) {
+            startOrRetry("chain_append");
+        } else {
+            open(Page::LaunchAction);
+        }
+    } else if (view.page == Page::LaunchAction) {
+        if (view.cursor == 2) {
+            if (chainDraft.size() >= 8) {
+                errorText = tr("Max 8 steps", "Maks. 8 kroków");
+                statusMint = false;
+            } else {
+                chainDraft.push_back({provider, project, projectLabel, model, effort, prompt, promptLabel, sessionMode});
+                const int n = int(chainDraft.size());
+                back();
+                back();
+                errorText = tr("Step ", "Krok ") + String(n) + tr(" added", " dodany");
+                statusMint = true;
+            }
+        } else {
+            launchShutdownAfter = (view.cursor == 1);
+            if (chainDraft.empty()) {
+                startOrRetry("start");
+            } else {
+                pendingChainSteps = chainDraft;
+                if (pendingChainSteps.size() < 8) {
+                    pendingChainSteps.push_back({provider, project, projectLabel, model, effort, prompt, promptLabel, sessionMode});
+                }
+                startOrRetry("chain_start");
+            }
+        }
+    } else if (view.page == Page::Chain) {
+        if (view.cursor == 0 || view.cursor == 1) {
+            if (!chainDraft.empty()) {
+                launchShutdownAfter = (view.cursor == 1);
+                pendingChainSteps = chainDraft;
+                startOrRetry("chain_start");
+            }
+        } else if (view.cursor == 2) {
+            chainDraft.clear();
+            back();
+            errorText = tr("Chain cleared", "Wyczyszczono ciąg");
+            statusMint = true;
+        } else {
+            const int idx = view.cursor - 3;
+            if (idx >= 0 && idx < int(chainDraft.size())) {
+                chainDraft.erase(chainDraft.begin() + idx);
+                if (chainDraft.empty()) back();
+                else view.cursor = min(view.cursor, 2 + int(chainDraft.size()));
+            }
+        }
     } else if (view.page == Page::Question) {
         if (view.cursor >= 0 && view.cursor < int(questionOptions.size())) {
             answerChoice = view.cursor;
@@ -1413,8 +1667,26 @@ void select() {
         }
     } else if (view.page == Page::Job) {
         if (jobState == "waiting_input" && !questionOptions.empty()) open(Page::Question);
-        else if (jobState == "queued" || jobState == "running") open(Page::Stop);
-        else if (jobState.length() && jobState != "stopping") startOrRetry("retry");
+        else open(Page::JobMenu);
+    } else if (view.page == Page::JobMenu) {
+        const bool activeJob = jobState == "queued" || jobState == "running" || jobState == "waiting_input";
+        if (view.cursor == 0) {
+            startOrRetry("shutdown_after", !shutdownAfter);
+        } else if (view.cursor == 1) {
+            appendAfterJobId = jobId;
+            if (project.length() && provider.length()) open(Page::Prompts);
+            else if (provider.length()) open(Page::Projects);
+            else {
+                appendAfterJobId = "";
+                home();
+            }
+        } else if (view.cursor == 2) {
+            if (activeJob) open(Page::Stop);
+            else if (jobState.length() && jobState != "stopping") startOrRetry("retry");
+            else back();
+        } else if (view.cursor == 3 && jobChainId.length()) {
+            startOrRetry("chain_cancel");
+        }
     } else if (view.page == Page::Stop) {
         if (view.cursor == 0) back();
         else startOrRetry("stop");

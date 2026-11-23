@@ -142,7 +142,8 @@ class Updater:
         url = str(asset_url or "").strip()
         if not _allowed_download_url(url):
             raise ValueError(tr(lang, "update_invalid_url"))
-        clean_name = _SAFE_FILENAME.sub("_", str(asset_name or "AgentDeck-Setup.exe"))
+        base_name = Path(str(asset_name or "AgentDeck-Setup.exe")).name
+        clean_name = _SAFE_FILENAME.sub("_", base_name).lstrip(".") or "AgentDeck-Setup.exe"
         if not clean_name.lower().endswith(".exe"):
             clean_name += ".exe"
 
@@ -241,7 +242,7 @@ if (Test-Path -LiteralPath $exe) {{
 Start-Sleep -Seconds 2
 Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 """
-        script.write_text(ps_body, encoding="utf-8")
+        script.write_text(ps_body, encoding="utf-8-sig")
 
         ps_exe = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)

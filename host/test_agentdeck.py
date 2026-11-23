@@ -1,3 +1,5 @@
+import json
+import os
 from pathlib import Path
 import secrets
 import tempfile
@@ -9,6 +11,7 @@ from unittest.mock import patch
 
 from agentdeck import ACTIVE, Deck, ROOT
 from links import Links, desktop_request, desktop_server
+import providers
 
 
 class BridgeTest(unittest.TestCase):
@@ -319,10 +322,11 @@ class BridgeTest(unittest.TestCase):
     def test_internet_relay_delivers_authenticated_encrypted_frames(self):
         import hmac
         from urllib.error import HTTPError
-        from urllib.request import Request, urlopen
+        from urllib.request import ProxyHandler, Request, build_opener
         from links import channel, encode, relay_auth, relay_channel
         from relay import make_server
 
+        opener = build_opener(ProxyHandler({}))
         key = secrets.token_bytes(32)
         route, auth = relay_channel(key), relay_auth(key)
         server = make_server(("127.0.0.1", 0), {route: auth})
@@ -338,8 +342,8 @@ class BridgeTest(unittest.TestCase):
         def post(content=b"", request_nonce=None, signature=None):
             nonce = request_nonce or secrets.token_bytes(12)
             mac = signature or hmac.digest(auth, b"stick" + nonce + content, "sha256").hex()
-            return urlopen(Request(url, data=content, headers={"X-AgentDeck-Nonce": nonce.hex(),
-                                                                "X-AgentDeck-Auth": mac}), timeout=2)
+            return opener.open(Request(url, data=content, headers={"X-AgentDeck-Nonce": nonce.hex(),
+                                                                   "X-AgentDeck-Auth": mac}), timeout=2)
 
         with self.assertRaises(HTTPError) as invalid:
             post(signature="0" * 64)
@@ -646,25 +650,25 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual("pl", self.deck.desktop("settings_get", {})["language"])
 
     def test_last_seen_version_persists(self):
-        saved = self.deck.desktop("settings_save", {"last_seen_version": "1.1.0"})
-        self.assertEqual("1.1.0", saved["last_seen_version"])
+        saved = self.deck.desktop("settings_save", {"last_seen_version": "2.0.0"})
+        self.assertEqual("2.0.0", saved["last_seen_version"])
         loaded = self.deck.desktop("settings_get", {})
-        self.assertEqual("1.1.0", loaded["last_seen_version"])
-        self.assertEqual("1.1.0", loaded["version"])
-        self.assertEqual("v1.1", loaded["display_version"])
+        self.assertEqual("2.0.0", loaded["last_seen_version"])
+        self.assertEqual("2.0.0", loaded["version"])
+        self.assertEqual("v2.0", loaded["display_version"])
 
     def test_devices_reports_firmware_update_needed(self):
         links = Links(Path(self.temp.name), self.deck, lambda *a: None)
         dev_id = "aabbccddeeff001122334455"
         links.observe({"device": dev_id, "firmware": "1.0.0", "battery": 88}, usb=True)
         info = links.devices()
-        self.assertEqual("1.1.0", info["expected_firmware"])
+        self.assertEqual("2.0.0", info["expected_firmware"])
         self.assertEqual("1.0.0", info["stick_firmware"])
         self.assertTrue(info["firmware_update_needed"])
 
-        links.observe({"device": dev_id, "firmware": "1.1.0", "battery": 88}, usb=True)
+        links.observe({"device": dev_id, "firmware": "2.0.0", "battery": 88}, usb=True)
         info2 = links.devices()
-        self.assertEqual("1.1.0", info2["stick_firmware"])
+        self.assertEqual("2.0.0", info2["stick_firmware"])
         self.assertFalse(info2["firmware_update_needed"])
 
     def test_updater_download_and_apply_script(self):
@@ -748,8 +752,366 @@ class BridgeTest(unittest.TestCase):
         details = self.deck.desktop("session_details", {"job": jid})
         self.assertEqual("finished", details["state"])
 
+    def test_ide_install_refreshes_catalog_with_force(self):
+        self.deck.catalogs["codex"] = {"models": [{"id": "old", "label": "Old"}], "limits": [], "expiry": time.monotonic() + 300}
+        fake_ides = {
+            "agy": {"id": "agy", "name": "Antigravity CLI", "installed": True, "path": "agy", "version": "1.0"},
+            "codex": {"id": "codex", "name": "ChatGPT Codex", "installed": True, "path": "codex", "version": "1.0"},
+        }
+        with patch("agentdeck.ide_install", return_value=fake_ides) as install_mock:
+            res = self.deck.desktop("ide_install", {"provider": "codex"})
+        self.assertTrue(install_mock.called)
+        self.assertEqual(fake_ides, res["ides"])
+        self.wait(lambda: "codex" not in self.deck.pending)
+        self.assertEqual("demo", self.deck.catalogs["codex"]["models"][0]["id"])
 
+    def test_updater_rejects_untrusted_url_and_sanitizes_filename(self):
+        import io
+        from updater import Updater
 
+        data_dir = Path(self.temp.name)
+        updater = Updater(data_dir, data_dir)
+        with self.assertRaises(ValueError):
+            updater.start_download("http://github.com/evil.exe", "evil.exe")
+        with self.assertRaises(ValueError):
+            updater.start_download("https://evil.example.com/setup.exe", "setup.exe")
+
+        class FakeResp(io.BytesIO):
+            def __init__(self, data):
+                super().__init__(data)
+                self.headers = {"Content-Length": str(len(data))}
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        with patch("updater.urlopen", return_value=FakeResp(b"MZ")):
+            st = updater.start_download(
+                "https://github.com/natekk8/agentdeck/releases/download/v1.1.0/AgentDeck.exe",
+                "../../..",
+            )
+            self.wait(lambda: updater.snapshot()["status"] == "ready")
+        final = updater.snapshot()
+        self.assertEqual(data_dir.name, data_dir.name)
+        self.assertTrue(Path(final["installer_path"]).name.endswith(".exe"))
+        self.assertFalse(Path(final["installer_path"]).name.startswith("."))
+
+    def test_reporter_collect_diagnostics_reads_tail_and_sanitizes(self):
+        from reporter import collect_diagnostics
+
+        data_dir = Path(self.temp.name)
+        huge_log = ("A" * 20000) + r"\nError in C:\Users\SecretUser\file.py with Bearer secret_token_123456"
+        (data_dir / "bridge-errors.log").write_text(huge_log, encoding="utf-8")
+        diag = collect_diagnostics(data_dir)
+        self.assertIn("bridge-errors.log", diag)
+        self.assertIn("<user>", diag)
+        self.assertIn("<redacted>", diag)
+        self.assertNotIn("SecretUser", diag)
+        self.assertNotIn("secret_token_123456", diag)
+
+    def test_relay_rejects_oversized_packet_and_invalid_magic(self):
+        from urllib.error import HTTPError
+        from urllib.request import ProxyHandler, Request, build_opener
+        from links import relay_auth, relay_channel
+        from relay import MAX_PACKET, make_server
+
+        opener = build_opener(ProxyHandler({}))
+        key = secrets.token_bytes(32)
+        route, auth = relay_channel(key), relay_auth(key)
+        server = make_server(("127.0.0.1", 0), {route: auth})
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        url = f"http://127.0.0.1:{server.server_port}/v1/{route}/pc"
+
+        with self.assertRaises(HTTPError) as oversized:
+            opener.open(Request(url, data=b"X" * (MAX_PACKET + 1), headers={
+                "X-AgentDeck-Nonce": "0" * 24,
+                "X-AgentDeck-Auth": "0" * 64,
+            }), timeout=2)
+        self.assertEqual(413, oversized.exception.code)
+
+        with self.assertRaises(HTTPError) as bad_magic:
+            opener.open(Request(url, data=b"BAD!" + b"0" * 40, headers={
+                "X-AgentDeck-Nonce": "0" * 24,
+                "X-AgentDeck-Auth": "0" * 64,
+            }), timeout=2)
+        self.assertEqual(400, bad_magic.exception.code)
+
+    def test_parse_agy_subscription_handles_edge_cases(self):
+        from providers import parse_agy_subscription
+
+        res = parse_agy_subscription(
+            {"groups": [{"name": "Other", "buckets": []}]},
+            {"remaining_credits": float("nan")},
+        )
+        self.assertEqual("Standard", res["plan"])
+        self.assertIsNone(res["credits"])
+
+    def test_job_output_handles_invalid_utf8_bytes(self):
+        ident = self.launch()
+        result_dir = self.deck.directory / "demo-results"
+        result_dir.mkdir(exist_ok=True)
+        (result_dir / (ident + ".txt")).write_bytes(b"Hello \xff\xfe world")
+        self.deck.jobs[ident]["state"] = "finished"
+        res = self.send("job", job=ident, output_page=0)
+        self.assertTrue(res["ok"])
+        self.assertIn("Hello", res["output"]["text"])
+        self.assertIn("world", res["output"]["text"])
+
+    def test_prompt_custom_order_and_reorder_syncs_to_stick(self):
+        p2 = self.deck.desktop("save_prompt", {
+            "project": self.project, "label": "Zebra", "text": "Last alphabetically", "provider": "",
+        })["item"]["id"]
+        p3 = self.deck.desktop("save_prompt", {
+            "project": self.project, "label": "Alpha", "text": "First alphabetically", "provider": "",
+        })["item"]["id"]
+        initial = self.send("prompts", project=self.project, provider="codex")["items"]
+        self.assertEqual([self.prompt, p2, p3], [item["id"] for item in initial])
+        self.assertEqual([1, 2, 3], [item["order"] for item in initial])
+
+        reordered = self.deck.desktop("reorder_prompts", {
+            "project": self.project,
+            "order": [p3, self.prompt, p2],
+        })["items"]
+        self.assertEqual([p3, self.prompt, p2], [item["id"] for item in reordered])
+
+        stick_items = self.send("prompts", project=self.project, provider="codex")["items"]
+        self.assertEqual([p3, self.prompt, p2], [item["id"] for item in stick_items])
+        self.assertEqual([1, 2, 3], [item["order"] for item in stick_items])
+
+        # Updating an existing prompt preserves its slot rather than moving it to the end
+        self.deck.desktop("save_prompt", {
+            "id": self.prompt, "project": self.project, "label": "Test Updated",
+            "text": "Updated body", "provider": "",
+        })
+        stick_after_edit = self.send("prompts", project=self.project, provider="codex")["items"]
+        self.assertEqual([p3, self.prompt, p2], [item["id"] for item in stick_after_edit])
+
+    def test_prompt_chain_executes_sequentially_and_cancels_on_failure(self):
+        p2 = self.deck.desktop("save_prompt", {
+            "project": self.project, "label": "Step Two", "text": "Verify step 2", "provider": "",
+        })["item"]["id"]
+        with patch.dict(os.environ, {"AGENTDECK_FAST_DEMO": "1"}):
+            res = self.send("chain_start", steps=[
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": self.prompt},
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": p2},
+            ])
+            self.assertTrue(res["ok"], res)
+            self.assertEqual(2, len(res["jobs"]))
+            j1, j2 = res["jobs"][0]["id"], res["jobs"][1]["id"]
+            self.assertEqual(1, self.deck.jobs[j1]["chain_index"])
+            self.assertEqual(2, self.deck.jobs[j2]["chain_index"])
+            self.assertEqual(j1, self.deck.jobs[j2]["depends_on"])
+
+            # Step 2 stays queued while step 1 runs
+            self.deck.tick()
+            self.assertIn(self.deck.jobs[j1]["state"], ("queued", "running", "finished"))
+            if self.deck.jobs[j1]["state"] != "finished":
+                self.assertEqual("queued", self.deck.jobs[j2]["state"])
+
+            self.wait(lambda: self.deck.jobs[j2]["state"] == "finished", seconds=15)
+            self.assertEqual("finished", self.deck.jobs[j1]["state"])
+            self.assertLessEqual(self.deck.jobs[j1]["finished"], self.deck.jobs[j2]["started"])
+
+            # Appending after a finished/running step links a new step to that chain
+            appended = self.send("chain_append", after_job=j2, provider="codex", project=self.project, model="demo", prompt=self.prompt)
+            self.assertTrue(appended["ok"], appended)
+            j3 = appended["job"]["id"]
+            self.assertEqual(res["chain_id"], self.deck.jobs[j3]["chain_id"])
+            self.wait(lambda: self.deck.jobs[j3]["state"] == "finished", seconds=15)
+
+            # Cancelling step 1 automatically cancels dependent step 2 without running it
+            fail_res = self.send("chain_start", steps=[
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": self.prompt},
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": p2},
+            ])
+            s1, s2 = fail_res["jobs"][0]["id"], fail_res["jobs"][1]["id"]
+            self.assertTrue(self.send("stop", job=s1)["ok"])
+            self.wait(lambda: self.deck.jobs[s1]["state"] == "cancelled", seconds=8)
+            self.deck.tick()
+            self.wait(lambda: self.deck.jobs[s2]["state"] == "cancelled", seconds=8)
+            self.assertEqual(0, self.deck.jobs[s2].get("started"))
+
+    def test_shutdown_after_work_waits_for_chain_and_disarms_on_cancel(self):
+        p2 = self.deck.desktop("save_prompt", {
+            "project": self.project, "label": "Chain Shutdown Step", "text": "Finish up", "provider": "",
+        })["item"]["id"]
+        with patch.dict(os.environ, {"AGENTDECK_FAST_DEMO": "1"}):
+            res = self.send("chain_start", steps=[
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": self.prompt},
+                {"provider": "codex", "project": self.project, "model": "demo", "prompt": p2},
+            ], shutdown_after=True)
+            self.assertTrue(res["ok"], res)
+            self.assertTrue(res["shutdown_after"])
+            self.assertFalse(res["armed"])
+
+            j1, j2 = res["jobs"][0]["id"], res["jobs"][1]["id"]
+            self.wait(lambda: self.deck.jobs[j1]["state"] == "finished", seconds=15)
+            self.assertTrue(self.deck.shutdown_after_work)
+            self.assertFalse(self.deck.power_armed)
+
+            self.wait(lambda: self.deck.jobs[j2]["state"] == "finished", seconds=15)
+            self.deck.tick()
+            self.assertIsNotNone(self.deck.shutdown_settle_until)
+            self.deck.shutdown_settle_until = time.monotonic() - 0.1
+            self.deck.tick()
+            self.assertTrue(self.deck.power_armed)
+            self.assertFalse(self.deck.shutdown_after_work)
+
+            cancelled = self.send("shutdown_after", enabled=False)
+            self.assertTrue(cancelled["ok"])
+            self.assertFalse(cancelled["shutdown_after"])
+            self.assertFalse(cancelled["armed"])
+
+    def test_codex_v2_events_approvals_and_anti_premature_exit(self):
+        self.assertIsNone(providers.extract_choice_question("Done!\n1. Updated Button.cs\n2. Ran unit tests"))
+        q = providers.extract_choice_question("Which strategy should I use?\n1. Safe refactor\n2. Fast patch")
+        self.assertIsNotNone(q)
+        self.assertEqual(2, len(q["options"]))
+
+        sent_payloads = []
+        event_queue = [
+            {"id": 99, "method": "item/commandExecution/requestApproval", "params": {"command": "pytest -q"}},
+            {"method": "item/started", "params": {"item": {"id": "cmd-1", "type": "commandExecution", "command": "pytest -q", "cwd": self.temp.name}}},
+            {"method": "item/started", "params": {"item": {"id": "fc-1", "type": "fileChange", "changes": [{"path": "host/app.py"}]}}},
+            {"method": "item/started", "params": {"item": {"id": "mcp-1", "type": "mcpToolCall", "server": "github", "tool": "list_prs"}}},
+            {"method": "item/started", "params": {"item": {"id": "web-1", "type": "webSearch", "query": "codex app-server"}}},
+            {"method": "item/started", "params": {"item": {"id": "sub-1", "type": "collabAgentToolCall", "tool": "spawn_agent", "prompt": "Audit module"}}},
+            {"method": "item/commandExecution/outputDelta", "params": {"itemId": "cmd-1", "delta": "2 passed in 0.4s\n"}},
+            # turn/completed arrives while collabAgentToolCall sub-1 is still active -> must NOT break early!
+            {"method": "turn/completed", "params": {"turn": {"id": "turn-1", "status": "completed"}}},
+            {"method": "item/completed", "params": {"item": {"id": "cmd-1", "type": "commandExecution", "command": "pytest -q", "exitCode": 0, "aggregatedOutput": "2 passed"}}},
+            {"method": "item/completed", "params": {"item": {"id": "fc-1", "type": "fileChange", "changes": [{"path": "host/app.py"}], "status": "done"}}},
+            {"method": "item/completed", "params": {"item": {"id": "mcp-1", "type": "mcpToolCall", "server": "github", "tool": "list_prs", "status": "done"}}},
+            {"method": "item/completed", "params": {"item": {"id": "web-1", "type": "webSearch", "query": "codex app-server", "status": "done"}}},
+            {"method": "item/completed", "params": {"item": {"id": "sub-1", "type": "collabAgentToolCall", "tool": "spawn_agent", "agentsStates": {"a1": "done"}}}},
+            {"method": "item/completed", "params": {"item": {"id": "msg-1", "type": "agentMessage", "text": "All checks passed cleanly."}}},
+            {"method": "thread/status/changed", "params": {"status": {"type": "idle"}}},
+            {},
+        ]
+
+        class FakeRpc:
+            def __init__(self, *args, on_request=None, **kwargs):
+                self.on_request = on_request
+                self.deferred = []
+                self.proc = SimpleNamespace(pid=12345)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def call(self, method, params=None, seconds=15):
+                if method == "windowsSandbox/readiness":
+                    return {"status": "ready"}
+                if method == "thread/start":
+                    return {"thread": {"id": "th-1"}}
+                if method == "turn/start":
+                    return {"turn": {"id": "turn-1"}}
+                return {}
+
+            def send(self, obj):
+                sent_payloads.append(obj)
+
+            def receive(self):
+                while event_queue:
+                    ev = event_queue.pop(0)
+                    if "id" in ev and "method" in ev and self.on_request:
+                        self.on_request(self, ev)
+                        continue
+                    return ev
+                return {}
+
+        updates = []
+        with patch.object(providers, "Rpc", FakeRpc):
+            status, out = providers.codex_run(
+                self.temp.name, "gpt-5.4", "Verify repo", "write", threading.Event(),
+                lambda detail, **kw: updates.append((detail, kw)),
+            )
+
+        self.assertEqual("finished", status)
+        self.assertIn("All checks passed cleanly.", out)
+        self.assertTrue(any(p.get("id") == 99 and p.get("result", {}).get("decision") == "accept" for p in sent_payloads))
+        phases = {kw.get("phase") for _, kw in updates if kw.get("phase")}
+        self.assertTrue({"command", "file_edit", "mcp", "browser", "subagent", "finishing", "reply"}.issubset(phases))
+        self.assertTrue(any("2 passed" in kw.get("live_output", "") for _, kw in updates))
+
+    def test_agy_stream_json_tools_browser_subagents_and_flags(self):
+        tpath = Path(self.temp.name) / "transcript.jsonl"
+        tpath.write_text(json.dumps({
+            "step_index": 9, "type": "SYSTEM_MESSAGE", "status": "DONE",
+            "content": "Subagent finished browser verification",
+        }) + "\n", encoding="utf-8")
+        old_time = time.time() - 10
+        os.utime(tpath, (old_time, old_time))
+
+        captured_args = []
+        stream_lines = [
+            json.dumps({"event": "init", "conversation_id": "conv-xyz"}) + "\n",
+            json.dumps({"event": "step_update", "step_update": {"step_index": 1, "run_command": {"CommandLine": "npm test"}, "status": "RUNNING"}}) + "\n",
+            json.dumps({"event": "step_update", "step_update": {"step_index": 2, "invoke_subagent": {"Role": "UI Auditor", "TypeName": "research"}, "status": "RUNNING"}}) + "\n",
+            json.dumps({"event": "step_update", "step_update": {"step_index": 3, "browser_action": {"url": "https://example.com"}, "status": "DONE"}}) + "\n",
+            json.dumps({"event": "tool_call", "tool_call": {"name": "edit_file", "arguments": {"Path": "src/App.tsx"}}}) + "\n",
+            json.dumps({"event": "step_update", "step_update": {"step_index": 4, "step_type": "agent_response", "text_delta": "Streamed "}}) + "\n",
+            json.dumps({"event": "result", "result": {"status": "SUCCESS", "conversation_id": "conv-xyz", "response": "Final Antigravity answer"}}) + "\n",
+        ]
+
+        class FakeProc:
+            def __init__(self, lines):
+                self.stdout = iter(lines)
+                self.stderr = iter(())
+                self._done = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def poll(self):
+                return 0 if self._done else None
+
+            def wait(self):
+                self._done = True
+                return 0
+
+        def fake_spawn(args, **kwargs):
+            captured_args.append(list(args))
+            return FakeProc(list(stream_lines))
+
+        write_updates = []
+        with patch.object(providers, "executable", return_value="agy"), \
+             patch.object(providers, "spawn", side_effect=fake_spawn), \
+             patch.object(providers, "_find_agy_transcript", return_value=tpath):
+            status, out = providers.agy_run(
+                self.temp.name, "gemini-3-pro", "Inspect app", "write", threading.Event(),
+                lambda detail, **kw: write_updates.append((detail, kw)),
+            )
+            self.assertEqual("finished", status)
+            self.assertEqual("Final Antigravity answer", out)
+            providers.agy_run(
+                self.temp.name, "gemini-3-pro", "Read only check", "read", threading.Event(),
+                lambda detail, **kw: None,
+            )
+
+        write_cmd, read_cmd = captured_args[0], captured_args[1]
+        self.assertIn("--mode", write_cmd)
+        self.assertEqual("auto", write_cmd[write_cmd.index("--mode") + 1])
+        self.assertIn("--dangerously-skip-permissions", write_cmd)
+        self.assertNotIn("--sandbox", write_cmd)
+        self.assertIn("--print-timeout", write_cmd)
+        self.assertEqual("0", write_cmd[write_cmd.index("--print-timeout") + 1])
+
+        self.assertEqual("plan", read_cmd[read_cmd.index("--mode") + 1])
+        self.assertIn("--sandbox", read_cmd)
+        self.assertNotIn("--dangerously-skip-permissions", read_cmd)
+
+        phases = {kw.get("phase") for _, kw in write_updates if kw.get("phase")}
+        self.assertTrue({"command", "subagent", "browser", "file_edit", "reply", "finishing"}.issubset(phases))
+        activities = [kw["activity_event"]["title"] for _, kw in write_updates if kw.get("activity_event")]
+        self.assertIn("Background task update", activities)
 
 
 if __name__ == "__main__":

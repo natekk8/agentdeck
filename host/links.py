@@ -214,6 +214,17 @@ class Links:
         self.host_raw = bytes.fromhex(self.host)
         self.ifaces = []
         self.ifaces_at = 0
+        self._key_cache = {}
+
+    def _device_key(self, device, encrypted_blob):
+        with self.lock:
+            cached = self._key_cache.get(device)
+            if cached and cached[0] == encrypted_blob:
+                return cached[1]
+        key = unprotected(encrypted_blob)
+        with self.lock:
+            self._key_cache[device] = (encrypted_blob, key)
+        return key
 
     def lang(self):
         getter = getattr(self.deck, "language", None)
@@ -294,6 +305,7 @@ class Links:
             raise ValueError(tr(self.lang(), "invalid_stick_id"))
         with self.lock:
             self.config["devices"][device] = {"key": protected(key), "address": address or ""}
+            self._key_cache[device] = (self.config["devices"][device]["key"], key)
             write_json(self.path, self.config)
 
     def pair_lan(self, address, code):
@@ -391,6 +403,7 @@ class Links:
                         needs_fw = True
                 values.append({**item, "usb": self.usb_ready and self.usb_device == device,
                                "snapshot": snap})
+            ov = self.deck.overview()[0] if hasattr(self.deck, "overview") else {}
             return {
                 "paired": choices,
                 "usb": self.usb_ready,
@@ -400,6 +413,7 @@ class Links:
                 "expected_firmware": EXPECTED_STICK_FIRMWARE,
                 "stick_firmware": stick_fw,
                 "firmware_update_needed": needs_fw,
+                "overview": ov,
             }
 
     def command(self, device, action, **values):
@@ -459,6 +473,8 @@ class Links:
         with self.lock:
             if self.config["devices"].pop(device, None):
                 self.relay_test_until.pop(device, None)
+                self._key_cache.pop(device, None)
+                self.relay_pending.pop(device, None)
                 write_json(self.path, self.config)
 
     def configure_relay(self, value):
@@ -470,13 +486,15 @@ class Links:
 
     def relay_config(self):
         with self.lock:
-            keys = [unprotected(entry["key"]) for entry in self.config["devices"].values()]
-            channels = [{"channel": relay_channel(key), "auth": relay_auth(key).hex()} for key in keys]
-            return {
-                "endpoint": self.config.get("relay", ""),
-                "channels": channels,
-                "local_relay": self.local_relay_status(),
-            }
+            items = list(self.config["devices"].items())
+            endpoint = self.config.get("relay", "")
+        keys = [self._device_key(dev, entry["key"]) for dev, entry in items]
+        channels = [{"channel": relay_channel(key), "auth": relay_auth(key).hex()} for key in keys]
+        return {
+            "endpoint": endpoint,
+            "channels": channels,
+            "local_relay": self.local_relay_status(),
+        }
 
     def _port_open(self, host, port):
         try:
@@ -488,14 +506,17 @@ class Links:
     def local_relay_status(self):
         with self.lock:
             internal = self.local_relay_server is not None
-            external = (not internal) and self._port_open(self.local_relay_bind, self.local_relay_port)
-            return {
-                "running": internal or external,
-                "external": external,
-                "bind": self.local_relay_bind,
-                "port": self.local_relay_port,
-                "channels": len(self.config.get("devices", {})),
-            }
+            bind = self.local_relay_bind
+            port = self.local_relay_port
+            count = len(self.config.get("devices", {}))
+        external = (not internal) and self._port_open(bind, port)
+        return {
+            "running": internal or external,
+            "external": external,
+            "bind": bind,
+            "port": port,
+            "channels": count,
+        }
 
     def local_relay_start(self, bind="127.0.0.1", port=8793):
         self.local_relay_stop()
@@ -586,14 +607,15 @@ class Links:
                     with self.lock:
                         address = self.seen.get(device, {}).get("address") or saved["address"]
                         testing = time.monotonic() < self.relay_test_until.get(device, 0)
+                        ifaces = list(self.ifaces)
                     try:
-                        key = unprotected(saved["key"])
+                        key = self._device_key(device, saved["key"])
                         payload = {"answer": answers.get(device)}
                         with self.lock:
                             order = self.controls.get(device)
                             if order and tickets.get(device) and not order.ready.is_set():
                                 payload["control"] = {**order.request, "ticket": tickets[device]}
-                        for interface in self.ifaces:
+                        for interface in ifaces:
                             if address and ipaddress.IPv4Address(address) in interface["network"]:
                                 payload["mac"] = interface["mac"]
                                 break
@@ -665,8 +687,10 @@ def desktop_server(deck, links):
                 elif operation == "relay_save":
                     result = links.configure_relay(request["endpoint"])
                 elif operation == "relay_sync":
-                    device = request.get("device") or links.usb_device
-                    if device not in links.config["devices"]:
+                    with links.lock:
+                        device = request.get("device") or links.usb_device
+                        known = device in links.config["devices"]
+                    if not known:
                         raise ValueError(tr(links.lang(), "pair_first"))
                     result = links.command(device, "relay_config", host=links.host,
                                            endpoint=links.relay_config()["endpoint"])

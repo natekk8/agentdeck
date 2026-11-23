@@ -73,9 +73,12 @@ def collect_diagnostics(data_dir, max_chars=3600):
         if not log_file.is_file():
             continue
         try:
-            text = log_file.read_text(encoding="utf-8", errors="replace")
-            if text.strip():
-                tail = text[-1600:]
+            with log_file.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - 8192), os.SEEK_SET)
+                tail = handle.read().decode("utf-8", errors="replace")[-1600:]
+            if tail.strip():
                 chunks.append(f"=== {name} ===\n{sanitize_text(tail)}")
         except OSError:
             continue
